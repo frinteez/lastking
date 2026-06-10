@@ -68,11 +68,13 @@ export default class GameScene extends Phaser.Scene {
     
     this.executeBuild(7, 7, 'tile_palace', palaceConfig, false, true, false);
     this.palaceTile = this.tiles[7 + 7*this.MAP_W];
-    
-    this.executeBuild(7, 8, 'tile_farm', farmConfig, false, true, false);
-    // Note: initial free O2 building removed per Sprint 2
 
-    // Calculate initial active drones (farm uses 1 drone)
+    this.executeBuild(7, 8, 'tile_farm', farmConfig, false, true, false);
+    this.executeBuild(6, 7, 'tile_farm', farmConfig, false, true, false);
+    this.executeBuild(8, 7, 'tile_o2', o2Config, false, true, false);
+    this.executeBuild(7, 6, 'tile_o2', o2Config, false, true, false);
+
+    // Calculate initial active drones (2 farms + 2 O2 = 4 drones needed)
     this.calculateActiveDrones();
 
     this.setupInputs(cam);
@@ -82,8 +84,8 @@ export default class GameScene extends Phaser.Scene {
 
   createInitialState() {
     return {
-      day: 1, 
-      geld: 1000, offshore: 0, minerals: 50, nahrung: 100, sauerstoff: 100,
+      day: 1,
+      geld: 1000, offshore: 0, minerals: 50, nahrung: 100, sauerstoff: 200,
       gesundheit: 100, zufriedenheit: 100, happiness: 100, angst: 0, fear: 0, wissen: 50, planet: 100,
       
       taxLevel: 1, // DEFAULT TAX LEVEL BINDING
@@ -278,7 +280,7 @@ export default class GameScene extends Phaser.Scene {
     if(!config) return;
 
     if (this.state.geld < config.cost) {
-      this.events.emit('cosmic-event', `❌ Need ${config.cost} Geld.`); return;
+      this.events.emit('cosmic-event', `❌ Need ${config.cost} Money.`); return;
     }
     
     if (this.state.minerals < config.mineralCost) {
@@ -396,7 +398,7 @@ export default class GameScene extends Phaser.Scene {
     else if (type === 'publicHealth') cost = 300;
     else if (type === 'childLabor') cost = 100;
     
-    if (this.state.geld < cost) return this.events.emit('cosmic-event', `❌ Insufficient Geld.`);
+    if (this.state.geld < cost) return this.events.emit('cosmic-event', `❌ Insufficient Money.`);
 
     this.state.geld -= cost;
     
@@ -407,7 +409,8 @@ export default class GameScene extends Phaser.Scene {
       this.state.cooldowns.propaganda = 5;
     } else if (type === 'inquisition') {
       this.state.angst = Math.min(100, this.state.angst + 40);
-      this.state.efficiencyOverrideDays = 3; 
+      this.state.efficiency = 2.0;
+      this.state.efficiencyOverrideDays = 3;
       this.state.gesundheit = Math.max(0, this.state.gesundheit - 20);
       this.state.cooldowns.inquisition = 7;
     } else if (type === 'social') {
@@ -424,7 +427,12 @@ export default class GameScene extends Phaser.Scene {
       if (rand < 0.33) this.state.nahrung += 100;
       else if (rand < 0.66) this.state.sauerstoff += 100;
       else this.state.minerals += 100;
-      this.state.loyalty = Math.max(-100, this.state.loyalty - 15);
+      // Reduce loyalty for ALL factions when manipulating resources
+      if (this.state.factionLoyalty) {
+        this.state.factionLoyalty.rust = Math.max(-100, this.state.factionLoyalty.rust - 15);
+        this.state.factionLoyalty.order = Math.max(-100, this.state.factionLoyalty.order - 15);
+        this.state.factionLoyalty.guild = Math.max(-100, this.state.factionLoyalty.guild - 15);
+      }
       this.state.cooldowns.manipulation = 6;
     } else if (type === 'publicHealth') {
       this.state.gesundheit = Math.min(100, this.state.gesundheit + 25);
@@ -449,14 +457,21 @@ export default class GameScene extends Phaser.Scene {
       let farmFound = false;
       for (const t of this.tiles) {
         if (t.building && t.building.key === 'tile_farm' && !t.destroyed) {
-          t.destroyed = true; t.building.sprite.setTint(0xff0000); farmFound = true; break;
+          t.destroyed = true;
+          t.building.sprite.setTint(0xff0000);
+          // Release any locked workers/engineers from destroyed building
+          if (t.building.lockedWorkers) this.state.workersLocked = Math.max(0, this.state.workersLocked - t.building.lockedWorkers);
+          if (t.building.lockedEngineers) this.state.constructionEngineersLocked = Math.max(0, this.state.constructionEngineersLocked - t.building.lockedEngineers);
+          farmFound = true;
+          break;
         }
       }
     } else if (name === 'Tax Strike') {
-      this.state.efficiencyOverrideDays = 2; 
+      this.state.efficiencyOverrideDays = 3;
       this.state.efficiency = 0; 
     } else if (name === 'Eco-Protest') {
-      this.state.efficiency = 0; 
+      this.state.efficiencyOverrideDays = 3;
+      this.state.efficiency = 0;
     }
     this.syncSentimentAliases();
   }
@@ -568,13 +583,17 @@ export default class GameScene extends Phaser.Scene {
     
     // Population & Lifecycle Engine
     const totalPop = getTotalPopulation(this.state);
-    const dailyConsumption = Math.floor(totalPop * 0.5);
-    
+    const dailyConsumption = (this.state.popChildren * 1) + (this.state.popWorkers * 2) + (this.state.popEngineers * 3);
+
     this.state.nahrung -= dailyConsumption;
     this.state.sauerstoff -= dailyConsumption;
 
-    const foodDeficit = Math.max(0, -this.state.nahrung);
-    const o2Deficit = Math.max(0, -this.state.sauerstoff);
+    // Clamp physical resources to 0 minimum
+    this.state.nahrung = Math.max(0, this.state.nahrung);
+    this.state.sauerstoff = Math.max(0, this.state.sauerstoff);
+
+    const foodDeficit = this.state.nahrung === 0 ? dailyConsumption : 0;
+    const o2Deficit = this.state.sauerstoff === 0 ? dailyConsumption : 0;
     
     // BIRTHS: If Happiness > 60 and Food > 0
     if (this.state.nahrung > 0 && this.state.zufriedenheit > 60 && totalPop < this.state.popCap) {
@@ -594,7 +613,7 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // DEATH: If Food <= 0 or O2 <= 0, reduce population
-    if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
+    if (this.state.nahrung === 0 || this.state.sauerstoff === 0) {
       const removeFromRoster = (type) => {
         const idx = this.state.citizenRoster.findIndex(entry => entry.type === type);
         if (idx >= 0) this.state.citizenRoster.splice(idx, 1);
@@ -619,8 +638,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Happiness modifiers
     const taxImpact = 2 - (T * T);
-    const knowCurse = -Math.floor(this.state.wissen / 100) * (T + 1);
-    const hungerPanic = this.state.nahrung < 0 ? -Math.floor(foodDeficit / 10) * 2 : 0;
+    const knowCurse = -Math.floor(Math.min(this.state.wissen, 500) / 100) * (T + 1);
+    const hungerPanic = this.state.nahrung === 0 && foodDeficit > 0 ? -Math.floor(foodDeficit / 10) * 2 : 0;
     const ecoPanic = this.state.planet < 50 ? -Math.floor((50 - this.state.planet) / 10) * (1 + Math.floor(this.state.wissen / 50)) : 0;
     
     this.state.zufriedenheit += (taxImpact + knowCurse + hungerPanic + ecoPanic);
@@ -654,17 +673,23 @@ export default class GameScene extends Phaser.Scene {
     this.syncSentimentAliases();
 
     if (this.state.happiness <= 0 && this.state.fear < 40) {
-      this.triggerEnding('aufstand');
+      this.triggerEnding('Uprising');
       return;
     }
 
     if (this.state.efficiencyOverrideDays > 0) {
-      this.state.efficiency = 1.0;
       this.state.efficiencyOverrideDays--;
+      if (this.state.efficiencyOverrideDays === 0) {
+        // Override expired, recalculate normally
+        let baseE = (this.state.zufriedenheit + (this.state.angst * 1.5)) / 80;
+        this.state.efficiency = Math.min(1.0, baseE);
+        if (this.state.gesundheit < 50) this.state.efficiency *= 0.7;
+      }
+      // else keep current efficiency from riot/inquisition
     } else {
       let baseE = (this.state.zufriedenheit + (this.state.angst * 1.5)) / 80;
       this.state.efficiency = Math.min(1.0, baseE);
-      if (this.state.gesundheit < 50) this.state.efficiency *= 0.7; 
+      if (this.state.gesundheit < 50) this.state.efficiency *= 0.7;
     }
     this.state.efficiency = Math.max(0, this.state.efficiency);
 
@@ -672,9 +697,10 @@ export default class GameScene extends Phaser.Scene {
     else if (T >= 3 && this.state.zufriedenheit < 20) this.triggerRiot('Tax Strike');
     else if (this.state.planet < 40 && this.state.wissen > 60) this.triggerRiot('Eco-Protest');
 
-    let resourceBuildings = [];
+    // Calculate population capacity once per day
     this.state.popCap = 20 + (this.tiles.filter(t => t.building && t.building.key === 'tile_housing' && t.building.daysRemaining === 0).length * 10);
 
+    let resourceBuildings = [];
     let processedBuildings = new Set();
     const E = this.state.efficiency; 
 
@@ -698,8 +724,7 @@ export default class GameScene extends Phaser.Scene {
         }
       } else {
         if(b.key === 'tile_housing') { /* popCap already updated */ }
-        if(b.key === 'tile_dronehub') this.state.drones.capacity += 5;
-        
+
         // Only add to resource buildings if has workers assigned
         if(['tile_farm', 'tile_o2', 'tile_mine'].includes(b.key) && b.workers > 0) {
           resourceBuildings.push({tile: t, bld: b});
@@ -718,7 +743,8 @@ export default class GameScene extends Phaser.Scene {
     // Process drone production queue
     if (typeof this.state.drones.owned !== 'number') this.state.drones.owned = 5;
     // Capacity: base 5 (palace) + 5 for each completed drone hub
-    this.state.drones.capacity = 5;
+    const droneHubCount = this.tiles.filter(t => t.building && t.building.key === 'tile_dronehub' && t.building.daysRemaining === 0).length;
+    this.state.drones.capacity = 5 + (droneHubCount * 5);
     if (Array.isArray(this.state.droneQueue) && this.state.droneQueue.length > 0) {
       const remainingQueue = [];
       for (const q of this.state.droneQueue) {
@@ -844,13 +870,13 @@ export default class GameScene extends Phaser.Scene {
     const s = this.state;
     const totalPop = s.popChildren + s.popWorkers + s.popEngineers;
     if (s.day >= 100 && s.zufriedenheit > 80 && s.planet > 80 && s.techs.planetStabilizer) {
-      this.triggerEnding('Apotheose');
+      this.triggerEnding('Ascension');
     } else if (s.techs.arkBlueprint && s.geld >= 30000 && this.tiles.some(t => t.building && t.building.key === 'ark_ship')) {
-      this.triggerEnding('Flucht');
+      this.triggerEnding('Escape');
     } else if (totalPop <= 0 || s.planet <= 0) {
-      this.triggerEnding('Zusammenbruch');
+      this.triggerEnding('Collapse');
     } else if (s.happiness <= 0 && s.fear < 40) {
-      this.triggerEnding('Aufstand');
+      this.triggerEnding('Uprising');
     }
   }
 
@@ -861,9 +887,9 @@ export default class GameScene extends Phaser.Scene {
       this.state.popEngineers = 2;
       this.state.popChildren = 0;
     } else if (presetName === 'scientific') {
-      this.state.geld = 0;
-      this.state.nahrung = 50;
-      this.state.sauerstoff = 50;
+      this.state.geld = 500;
+      this.state.nahrung = 150;
+      this.state.sauerstoff = 150;
       this.state.popWorkers = 0;
       this.state.popEngineers = 10;
       this.state.popChildren = 0;
@@ -871,7 +897,10 @@ export default class GameScene extends Phaser.Scene {
       this.state.techs.hydroponics = true;
       this.state.techs.basicSchooling = true;
     } else if (presetName === 'dictator') {
-      this.state.geld = 0;
+      this.state.geld = 300;
+      this.state.minerals = 100;
+      this.state.nahrung = 200;
+      this.state.sauerstoff = 200;
       this.state.popWorkers = 20;
       this.state.popEngineers = 0;
       this.state.popChildren = 0;
@@ -886,7 +915,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   triggerEnding(type) {
-    const normalizedType = String(type).toLowerCase() === 'aufstand' ? 'Aufstand' : type;
+    const normalizedType = String(type).toLowerCase() === 'uprising' ? 'Uprising' : type;
     this.state.gameEnded = true;
     this.cameras.main.fade(3000, 0, 0, 0);
     this.time.delayedCall(3000, () => {

@@ -10,7 +10,7 @@
     <!-- Start Menu Overlay (Pauses game until preset selected) -->
     <div id="start-menu" class="start-menu">
       <div class="start-menu-content">
-        <h1>The King's Legacy</h1>
+        <h1>Der letzte König</h1>
         <div class="start-tabs">
           <button class="start-tab-btn active" data-tab="presets">Presets</button>
           <button class="start-tab-btn" data-tab="howtoplay">How to Play</button>
@@ -23,15 +23,15 @@
             <div class="preset-buttons">
               <button class="btn primary preset-btn" data-preset="wealthy">
                 <div class="preset-title">Wealthy Heir</div>
-                <div class="preset-desc">5000 Geld, 15 Workers, 2 Engineers</div>
+                <div class="preset-desc">5000 Money, 15 Workers, 2 Engineers</div>
               </button>
               <button class="btn primary preset-btn" data-preset="scientific">
                 <div class="preset-title">Scientific Expedition</div>
-                <div class="preset-desc">Hydroponics & Academy techs, 60 Knowledge, 10 Engineers</div>
+                <div class="preset-desc">500 Money, 150 Food/O2, 60 Knowledge, 10 Engineers, Hydroponics + Academy</div>
               </button>
               <button class="btn primary preset-btn" data-preset="dictator">
                 <div class="preset-title">Iron Dictator</div>
-                <div class="preset-desc">20 Workers, 50 Fear, All Factions at 0</div>
+                <div class="preset-desc">300 Money, 100 Minerals, 200 Food/O2, 20 Workers, 50 Fear, All Factions at 0</div>
               </button>
             </div>
           </div>
@@ -61,6 +61,14 @@
                 <h3>Ecology & Planet Collapse</h3>
                 <p>The Planetary Cracker boosts minerals but damages the world. Planet health below 50% triggers unrest. Use the Stabilizer to heal.</p>
               </div>
+              <div class="howtoplay-section">
+                <h3>Knowledge & Rebellion Risk</h3>
+                <p><strong>Warning:</strong> High Knowledge is dangerous. When Knowledge exceeds 80, your population becomes aware of the truth and unrest grows. Balance scientific progress with control.</p>
+              </div>
+              <div class="howtoplay-section">
+                <h3>Citizen Upgrades</h3>
+                <p>Build <strong>Schools</strong> to upgrade Children into Workers (5 days). Build <strong>Academies</strong> to upgrade Workers into Engineers (7 days). Click on Schools/Academies to enroll citizens.</p>
+              </div>
             </div>
           </div>
           <div id="lore-tab" class="start-tab-pane">
@@ -68,11 +76,11 @@
             <div class="lore-content">
               <p>The last king of a dying world must make impossible choices. Your colony teeters on the brink of extinction. Stabilize the planet, or escape before the end.</p>
               <h3>Victory Conditions</h3>
-              <p><strong>Apotheose (Ascension)</strong>: Day 100+, Happiness > 80%, Planet Health > 80%, Planet Stabilizer built. Transcend through technology.</p>
-              <p><strong>Royal Ark (Escape)</strong>: Build the Royal Ark AND accumulate 30,000 Geld. Flee to the stars.</p>
+              <p><strong>Ascension</strong>: Day 100+, Happiness > 80%, Planet Health > 80%, Planet Stabilizer built. Transcend through technology.</p>
+              <p><strong>Royal Ark (Escape)</strong>: Build the Royal Ark AND accumulate 30,000 Money. Flee to the stars.</p>
               <h3>Defeat Conditions</h3>
-              <p><strong>Zusammenbruch (Collapse)</strong>: Population reaches 0 or Planet Health reaches 0%.</p>
-              <p><strong>Aufstand (Uprising)</strong>: Happiness reaches 0% while Fear remains below 40%. The people overthrow you.</p>
+              <p><strong>Collapse</strong>: Population reaches 0 or Planet Health reaches 0%.</p>
+              <p><strong>Uprising</strong>: Happiness reaches 0% while Fear remains below 40%. The people overthrow you.</p>
               <p><strong>Extinction</strong>: All citizens perish from starvation or environmental collapse.</p>
             </div>
           </div>
@@ -301,7 +309,7 @@
             <div class="decree-effects">-50 Knowledge, +20 Happiness, -10 Fear</div>
           </div>
           <div class="decree-cost-pill">
-            <img src="/assets/icon_money.png" alt="Geld">
+            <img src="/assets/icon_money.png" alt="Money">
             <span class="decree-cost-value">300</span>
           </div>
         </div>
@@ -356,7 +364,7 @@
             <div class="decree-effects">+25 Health, +5 Happiness</div>
           </div>
           <div class="decree-cost-pill">
-            <img src="/assets/icon_money.png" alt="Geld">
+            <img src="/assets/icon_money.png" alt="Money">
             <span class="decree-cost-value">300</span>
           </div>
         </div>
@@ -444,8 +452,8 @@
             <div class="trade-window hidden" id="trade-rust">
               <div class="trade-title">Trade Negotiation</div>
               <div class="trade-info">
-                <img src="/assets/icon_money.png" alt="Geld" onerror="this.textContent='💰'">
-                <span id="trade-price-rust">Base Price: 200 Geld/unit</span>
+                <img src="/assets/icon_money.png" alt="Money" onerror="this.textContent='💰'">
+                <span id="trade-price-rust">Base Price: 200 Money/unit</span>
               </div>
               <div class="trade-input-group">
                 <label>Quantity:</label>

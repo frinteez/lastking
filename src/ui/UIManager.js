@@ -16,10 +16,10 @@ export default class UIManager {
       health: { label: 'Medical Supplies', icon: '/assets/icon_health.png', buyGeld: 40, sellGeld: 20, canSell: true },
       medicine: { label: 'Medical Supplies', icon: '/assets/icon_medicine.png', buyGeld: 40, sellGeld: 20, canSell: true },
       credits: { label: 'Credits', icon: '/assets/icon_money.png', buyGeld: 1, sellGeld: 1, canSell: true },
-      artifacts: { label: 'Artifacts', icon: '/assets/icon_artifact.png', buyGeld: 500, sellGeld: null, canSell: false }
+      artifacts: { label: 'Artifacts', icon: '/assets/icon_artifact.png', buyGeld: 500, sellGeld: null, canSell: false, knowledgeGrant: 100 }
     };
     this.currencyCatalog = {
-      geld: { label: 'Geld', icon: '/assets/icon_money.png', rate: 1 },
+      geld: { label: 'Money', icon: '/assets/icon_money.png', rate: 1 },
       minerals: { label: 'Minerals', icon: '/assets/icon_min.png', rate: 10 },
       food: { label: 'Food', icon: '/assets/icon_food.png', rate: 15 },
       o2: { label: 'O2', icon: '/assets/icon_o2.png', rate: 20 },
@@ -476,7 +476,7 @@ export default class UIManager {
         <div class="trade-input-group">
           <label>Pay With:</label>
           <div class="trade-currency-row">
-            <button class="btn trade-currency-btn active" data-currency="geld"><img src="/assets/icon_money.png" class="inline-icon" alt="Geld">Geld</button>
+            <button class="btn trade-currency-btn active" data-currency="geld"><img src="/assets/icon_money.png" class="inline-icon" alt="Money">Money</button>
             <button class="btn trade-currency-btn" data-currency="o2"><img src="/assets/icon_o2.png" class="inline-icon" alt="O2">O2</button>
             <button class="btn trade-currency-btn" data-currency="minerals"><img src="/assets/icon_min.png" class="inline-icon" alt="Minerals">Minerals</button>
             <button class="btn trade-currency-btn" data-currency="citizens"><img src="/assets/child.png" class="inline-icon" alt="Citizens">Citizens</button>
@@ -612,11 +612,16 @@ export default class UIManager {
     const infoEl = tw.infoEl || tw.window.querySelector('.trade-info');
     if (infoEl) {
       const itemHtml = `<img src="${resource.icon}" class="inline-icon" alt="${resource.label}">`;
+      let priceInfo = '';
       if (mode === 'buy') {
-        infoEl.innerHTML = `Base Price: ${baseMoneyPerUnit * qty} <img src="/assets/icon_money.png" class="inline-icon" alt="Money"> for ${qty} ${itemHtml}`;
+        priceInfo = `Base Price: ${baseMoneyPerUnit * qty} <img src="/assets/icon_money.png" class="inline-icon" alt="Money"> for ${qty} ${itemHtml}`;
+        if (resourceType === 'artifacts' && resource.knowledgeGrant) {
+          priceInfo += `<div style="color: var(--accent-cyan); margin-top: 4px;">Grants +${resource.knowledgeGrant * qty} Knowledge</div>`;
+        }
       } else {
-        infoEl.innerHTML = `Sell Price: ${baseMoneyPerUnit * qty} <img src="/assets/icon_money.png" class="inline-icon" alt="Money"> for ${qty} ${itemHtml}`;
+        priceInfo = `Sell Price: ${baseMoneyPerUnit * qty} <img src="/assets/icon_money.png" class="inline-icon" alt="Money"> for ${qty} ${itemHtml}`;
       }
+      infoEl.innerHTML = priceInfo;
     }
 
     if (tw.citizenRow) tw.citizenRow.classList.toggle('hidden', currency !== 'citizens' || mode !== 'buy');
@@ -711,7 +716,7 @@ export default class UIManager {
       else if (currency === 'food') state.nahrung -= amount;
       else if (currency === 'o2') state.sauerstoff -= amount;
       else if (currency === 'citizens') {
-        const requiredPeople = citizenType === 'engineers'
+        let requiredPeople = citizenType === 'engineers'
           ? Math.ceil(amount / 100)
           : citizenType === 'workers'
             ? Math.ceil(amount / 50)
@@ -972,7 +977,7 @@ export default class UIManager {
     let tooltipHTML = '';
 
     if (classList.includes('money')) {
-      tooltipHTML = `<strong>Geld</strong><div>Currency for trades</div>`;
+      tooltipHTML = `<strong>Money</strong><div>Currency for trades</div>`;
     } else if (classList.includes('population')) {
       const totalPop = getTotalPopulation(s);
       const lockedEngineers = (s.dronesEngineersLocked || 0) + (s.constructionEngineersLocked || 0);
@@ -1084,7 +1089,10 @@ export default class UIManager {
     else if (resourceType === 'health' || resourceType === 'medicine') state.gesundheit += quantity;
     else if (resourceType === 'knowledge') state.wissen += quantity;
     else if (resourceType === 'artifacts') {
-      state.wissen += quantity * 100;
+      const resource = this.tradeCatalog[resourceType];
+      const knowledgePerUnit = resource?.knowledgeGrant || 100;
+      state.wissen += quantity * knowledgePerUnit;
+      this.log(`📚 Artifacts grant +${quantity * knowledgePerUnit} Knowledge`);
     } else if (resourceType === 'technology') {
       const lockedTechs = Object.keys(this.techDictionary).filter(key => !state.techs[key]);
       for (let i = 0; i < quantity; i++) {
@@ -1191,7 +1199,7 @@ export default class UIManager {
     const totalPop = getTotalPopulation(s);
     const resourceCells = `
       <div class="resource-cell money">
-        <img src="/assets/icon_money.png" alt="Geld" class="res-icon" onerror="this.style.display='none'">
+        <img src="/assets/icon_money.png" alt="Money" class="res-icon" onerror="this.style.display='none'">
         <span class="resource-value">${s.geld}</span>
       </div>
       <div class="resource-cell population">
@@ -1300,17 +1308,17 @@ export default class UIManager {
     const textEl = document.getElementById('ending-text');
     
     const bgs = {
-      'Apotheose': 'url(/assets/ending_apotheose.png)',
-      'Flucht': 'url(/assets/ending_flucht.png)',
-      'Zusammenbruch': 'url(/assets/ending_zusammenbruch.png)',
-      'Aufstand': 'url(/assets/ending_aufstand.png)'
+      'Ascension': 'url(/assets/ending_apotheose.png)',
+      'Escape': 'url(/assets/ending_flucht.png)',
+      'Collapse': 'url(/assets/ending_zusammenbruch.png)',
+      'Uprising': 'url(/assets/ending_aufstand.png)'
     };
-    
+
     const texts = {
-      'Apotheose': "The world heals. But it bows only to you.\nThe eternal tyrant reigns.",
-      'Flucht': "You abandon the dying world.\nThe Royal Ark slips into the void.",
-      'Zusammenbruch': "Silence falls over the colony.\nWe dug too deep, and starved in the dark.",
-      'Aufstand': "The palace burns.\nThe people have taken back the planet."
+      'Ascension': "The world heals. But it bows only to you.\nThe eternal tyrant reigns.",
+      'Escape': "You abandon the dying world.\nThe Royal Ark slips into the void.",
+      'Collapse': "Silence falls over the colony.\nWe dug too deep, and starved in the dark.",
+      'Uprising': "The palace burns.\nThe people have taken back the planet."
     };
 
     screen.style.backgroundImage = bgs[type] || 'none';

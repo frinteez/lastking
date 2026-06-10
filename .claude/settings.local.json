@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(winget install *)"
+      "Bash(winget install *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
     ]
   }
 }

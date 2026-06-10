@@ -44,7 +44,7 @@ html, body {
 
 .brand { font-weight: 800; color: var(--accent-gold); text-transform: uppercase; border-right: 1px solid var(--glass-border); padding-right: 12px; }
 .resources { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 11px; color: var(--text-main); line-height: 1.5; }
-.res-icon { width: 16px; height: 16px; vertical-align: text-bottom; }
+.res-icon { width: 20px; height: 20px; vertical-align: text-bottom; }
 
 /* Resource Cell Design */
 .resource-cell {
