@@ -16,9 +16,37 @@
 
 html, body {
   height: 100%; margin: 0; padding: 0;
-  background-color: var(--bg-dark);
+  background: linear-gradient(180deg, #05070a 0%, #0a0d14 50%, #050508 100%);
   font-family: 'Inter', system-ui, sans-serif;
   color: var(--text-main); overflow: hidden;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, 0.15), transparent),
+    radial-gradient(2px 2px at 60% 70%, rgba(255, 255, 255, 0.1), transparent),
+    radial-gradient(1px 1px at 50% 50%, rgba(255, 255, 255, 0.12), transparent),
+    radial-gradient(1px 1px at 80% 10%, rgba(255, 255, 255, 0.08), transparent),
+    radial-gradient(2px 2px at 90% 60%, rgba(255, 255, 255, 0.1), transparent),
+    radial-gradient(1px 1px at 33% 85%, rgba(255, 255, 255, 0.09), transparent);
+  background-size: 200% 200%;
+  background-position: 0% 0%;
+  animation: driftStars 180s linear infinite;
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: 0;
+}
+
+@keyframes driftStars {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-25%, -25%); }
 }
 
 #game-container {
@@ -55,6 +83,21 @@ html, body {
 }
 .resource-cell:hover { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.2); }
 
+.resource-cell.resource-critical {
+  animation: criticalPulse 1s ease-in-out infinite;
+}
+
+@keyframes criticalPulse {
+  0%, 100% {
+    border-color: rgba(255, 51, 102, 0.8);
+    box-shadow: 0 0 8px rgba(255, 51, 102, 0.4);
+  }
+  50% {
+    border-color: rgba(255, 51, 102, 1);
+    box-shadow: 0 0 16px rgba(255, 51, 102, 0.8);
+  }
+}
+
 .resource-cell.health { background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(76, 175, 80, 0.08)); border-color: rgba(76, 175, 80, 0.3); }
 .resource-cell.food { background: linear-gradient(135deg, rgba(191, 113, 34, 0.22), rgba(255, 145, 0, 0.10)); border-color: rgba(221, 138, 57, 0.45); }
 .resource-cell.money { background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.08)); border-color: rgba(212, 175, 55, 0.3); }
@@ -69,6 +112,7 @@ html, body {
 
 .resource-cell.label { font-size: 9px; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; letter-spacing: 0.5px; }
 .resource-value { font-weight: 600; color: #fff; font-size: 12px; }
+.resource-consumption { font-size: 10px; color: var(--accent-red); margin-left: 4px; font-weight: 500; }
 
 .ui-build-cost-tooltip {
   position: fixed; z-index: 11000;
@@ -115,11 +159,6 @@ html, body {
 
 .build-category h4 { margin: 0 0 8px 0; font-size: 10px; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--glass-border); padding-bottom: 4px;}
 .build-options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;}
-
-.log-panel { height: 180px; display: flex; flex-direction: column; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 6px; border: 1px solid var(--glass-border); }
-.log-header { font-size: 10px; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 6px; }
-.log-body { overflow-y: auto; font-size: 10px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
-.log-line { padding: 4px; border-left: 2px solid var(--accent-cyan); background: rgba(0,229,255,0.05); }
 
 .btn {
   border: 1px solid var(--glass-border); padding: 8px 12px; border-radius: 4px; 
@@ -876,3 +915,159 @@ input[type="number"] {
   transform: scale(1.05);
 }
 #ending-text { color: #fff; font-family: monospace; font-size: 20px; line-height: 1.6; margin: 0; text-shadow: 0 0 10px rgba(255,255,255,0.5); white-space: pre-wrap; }
+
+/* Floating Combat Text (FCT) */
+.floating-text {
+  position: fixed;
+  font-size: 18px;
+  font-weight: 800;
+  pointer-events: none;
+  z-index: 9999;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9), 0 2px 4px rgba(0, 0, 0, 0.8);
+  animation: floatUp 1.5s ease-out forwards;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.floating-text.positive {
+  color: #00ff88;
+}
+
+.floating-text.negative {
+  color: #ff3366;
+}
+
+.floating-text.warning {
+  color: #ffcc00;
+}
+
+.floating-text.info {
+  color: #00e5ff;
+}
+
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-30px) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-60px) scale(0.9);
+  }
+}
+
+/* Toast Notification System */
+.toast-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(12, 16, 28, 0.95);
+  backdrop-filter: blur(16px);
+  border-left: 4px solid var(--accent-cyan);
+  border-radius: 8px;
+  padding: 16px 20px;
+  min-width: 320px;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(125, 211, 252, 0.2);
+  animation: slideInRight 0.4s ease-out;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toast.toast-error {
+  border-left-color: var(--accent-red);
+}
+
+.toast.toast-warning {
+  border-left-color: #ffcc00;
+}
+
+.toast.toast-success {
+  border-left-color: #00ff88;
+}
+
+.toast.toast-exit {
+  animation: slideOutRight 0.3s ease-in forwards;
+}
+
+.toast-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent-cyan);
+  margin: 0 0 4px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.toast-message {
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.4;
+  margin: 0;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(400px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(400px);
+  }
+}
+
+/* Phaser Canvas Tile Styles (via inline sprite manipulation) */
+/* Active Building Pulse - Applied via class in GameScene */
+@keyframes buildingPulse {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 4px rgba(0, 229, 255, 0.3));
+  }
+  50% {
+    filter: brightness(1.15) drop-shadow(0 0 12px rgba(0, 229, 255, 0.6));
+  }
+}
+
+/* Tile Hover Glow - Applied via pointer events in GameScene */
+@keyframes tileHoverGlow {
+  0% {
+    filter: brightness(1);
+  }
+  100% {
+    filter: brightness(1.3) drop-shadow(0 0 8px rgba(0, 229, 255, 0.8));
+  }
+}

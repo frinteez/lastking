@@ -8,15 +8,15 @@ export default class UIManager {
     this.paymentCurrency = 'geld';
     this.typewriterTimer = null;
     this.tradeCatalog = {
-      minerals: { label: 'Minerals', icon: '/assets/icon_min.png', buyGeld: 10, sellGeld: 5, canSell: true },
-      food: { label: 'Food', icon: '/assets/icon_food.png', buyGeld: 15, sellGeld: 8, canSell: true },
-      o2: { label: 'O2', icon: '/assets/icon_o2.png', buyGeld: 20, sellGeld: 10, canSell: true },
-      technology: { label: 'Tech Blueprints', icon: '/assets/icon_tech.png', buyGeld: 2500, sellGeld: null, canSell: false },
-      knowledge: { label: 'Knowledge', icon: '/assets/icon_knowledge.png', buyGeld: 500, sellGeld: null, canSell: false },
-      health: { label: 'Medical Supplies', icon: '/assets/icon_health.png', buyGeld: 40, sellGeld: 20, canSell: true },
-      medicine: { label: 'Medical Supplies', icon: '/assets/icon_medicine.png', buyGeld: 40, sellGeld: 20, canSell: true },
-      credits: { label: 'Credits', icon: '/assets/icon_money.png', buyGeld: 1, sellGeld: 1, canSell: true },
-      artifacts: { label: 'Artifacts', icon: '/assets/icon_artifact.png', buyGeld: 500, sellGeld: null, canSell: false, knowledgeGrant: 100 }
+      minerals: { label: 'Minerals', icon: '/assets/icon_min.png', buyGeld: 10, sellGeld: 5, canSell: true, tooltip: 'Basic construction material for buildings' },
+      food: { label: 'Food', icon: '/assets/icon_food.png', buyGeld: 15, sellGeld: 8, canSell: true, tooltip: 'Required for population survival (2-3 units/day per citizen)' },
+      o2: { label: 'O2', icon: '/assets/icon_o2.png', buyGeld: 20, sellGeld: 10, canSell: true, tooltip: 'Life support oxygen (2-3 units/day per citizen)' },
+      technology: { label: 'Tech Blueprints', icon: '/assets/icon_tech.png', buyGeld: 2500, sellGeld: null, canSell: false, tooltip: 'Unlocks 1 random locked technology in the Research Tree' },
+      knowledge: { label: 'Knowledge', icon: '/assets/icon_knowledge.png', buyGeld: 500, sellGeld: null, canSell: false, tooltip: 'Grants +50 Knowledge points for research' },
+      health: { label: 'Medical Supplies', icon: '/assets/icon_health.png', buyGeld: 40, sellGeld: 20, canSell: true, tooltip: 'Restores +20 Health points' },
+      medicine: { label: 'Medical Supplies', icon: '/assets/icon_medicine.png', buyGeld: 40, sellGeld: 20, canSell: true, tooltip: 'Restores +20 Health points' },
+      credits: { label: 'Credits', icon: '/assets/icon_money.png', buyGeld: 1, sellGeld: 1, canSell: true, tooltip: 'Universal currency' },
+      artifacts: { label: 'Artifacts', icon: '/assets/icon_artifact.png', buyGeld: 500, sellGeld: null, canSell: false, knowledgeGrant: 100, tooltip: 'Grants +100 Knowledge points' }
     };
     this.currencyCatalog = {
       geld: { label: 'Money', icon: '/assets/icon_money.png', rate: 1 },
@@ -124,6 +124,9 @@ export default class UIManager {
 
     this.bindDOM();
 
+    // Track previous resource values for floating text
+    this.prevResources = {};
+
     // Ensure build cost tooltip element exists and is referenced before event listeners run
     let bc = document.querySelector('#ui-build-cost-tooltip');
     if (!bc) {
@@ -150,7 +153,6 @@ export default class UIManager {
     this.el = {
       topbarContent: document.getElementById('topbar-content'),
       btnNextDay: document.getElementById('btn-next-day'),
-      log: document.getElementById('log-body'),
       buildBtns: Array.from(document.querySelectorAll('.build-option')),
       modals: Array.from(document.querySelectorAll('.fullscreen-modal')),
       modalTriggers: Array.from(document.querySelectorAll('.trigger-modal')),
@@ -251,6 +253,7 @@ export default class UIManager {
         const preset = e.currentTarget.dataset.preset;
         if (this.scene) {
           this.scene.startWithPreset(preset);
+          console.log('Preset applied:', preset);
           this.el.startMenu.classList.add('hidden');
         }
       });
@@ -558,6 +561,13 @@ export default class UIManager {
         if (current.citizenRow) current.citizenRow.style.display = (btn.dataset.currency === 'citizens' && current.tradeState.mode === 'buy') ? 'flex' : 'none';
         this.updateTradeCalculation(factionId);
       });
+
+      // Add tooltip to currency buttons
+      const currencyKey = btn.dataset.currency;
+      const currencyData = this.currencyCatalog[currencyKey];
+      if (currencyData && currencyData.tooltip) {
+        btn.title = currencyData.tooltip;
+      }
     });
 
     current.citizenButtons.forEach(btn => {
@@ -615,6 +625,9 @@ export default class UIManager {
       let priceInfo = '';
       if (mode === 'buy') {
         priceInfo = `Base Price: ${baseMoneyPerUnit * qty} <img src="/assets/icon_money.png" class="inline-icon" alt="Money"> for ${qty} ${itemHtml}`;
+        if (resource.tooltip) {
+          priceInfo += `<div style="color: var(--accent-cyan); font-size: 11px; margin-top: 6px;">${resource.tooltip}</div>`;
+        }
         if (resourceType === 'artifacts' && resource.knowledgeGrant) {
           priceInfo += `<div style="color: var(--accent-cyan); margin-top: 4px;">Grants +${resource.knowledgeGrant * qty} Knowledge</div>`;
         }
@@ -1193,10 +1206,57 @@ export default class UIManager {
   }
 
   updateUI(s) {
-    if (!s) return; 
+    if (!s) return;
+
+    // Initialize prevResources on first call
+    if (Object.keys(this.prevResources).length === 0) {
+      this.prevResources = {
+        geld: s.geld,
+        nahrung: s.nahrung,
+        sauerstoff: s.sauerstoff,
+        minerals: s.minerals,
+        gesundheit: s.gesundheit,
+        wissen: s.wissen,
+        zufriedenheit: s.zufriedenheit,
+        angst: s.angst,
+        planet: s.planet
+      };
+    }
+
+    // Track resource changes for floating text
+    const resourceMap = {
+      geld: { class: 'money', prev: this.prevResources.geld },
+      nahrung: { class: 'food', prev: this.prevResources.nahrung },
+      sauerstoff: { class: 'o2', prev: this.prevResources.sauerstoff },
+      minerals: { class: 'minerals', prev: this.prevResources.minerals },
+      gesundheit: { class: 'health', prev: this.prevResources.gesundheit },
+      wissen: { class: 'knowledge', prev: this.prevResources.wissen },
+      zufriedenheit: { class: 'happiness', prev: this.prevResources.zufriedenheit },
+      angst: { class: 'fear', prev: this.prevResources.angst },
+      planet: { class: 'planet', prev: this.prevResources.planet }
+    };
+
+    // Spawn floating text for significant changes
+    for (const [key, data] of Object.entries(resourceMap)) {
+      if (data.prev !== undefined && s[key] !== data.prev) {
+        const delta = Math.round(s[key] - data.prev);
+        // Show for any change >= 1, or >= 5 for knowledge (too spammy otherwise)
+        const threshold = key === 'wissen' ? 5 : 1;
+        if (Math.abs(delta) >= threshold) {
+          this.spawnFloatingTextOnResource(data.class, delta);
+        }
+      }
+      this.prevResources[key] = s[key];
+    }
+
+    // Day/Night Cycle Visual Feedback (smooth transitions with hysteresis)
+    // Removed CSS approach - now handled natively in Phaser via nightOverlay
 
     // TOP BAR: Resource Cells Design (Clean, single border)
     const totalPop = getTotalPopulation(s);
+    const dailyFoodConsumption = (s.popChildren * 1) + (s.popWorkers * 2) + (s.popEngineers * 3);
+    const dailyO2Consumption = dailyFoodConsumption;
+
     const resourceCells = `
       <div class="resource-cell money">
         <img src="/assets/icon_money.png" alt="Money" class="res-icon" onerror="this.style.display='none'">
@@ -1211,13 +1271,15 @@ export default class UIManager {
         <span class="resource-value">${s.drones.owned}/${s.drones.capacity}</span>
         ${s.dronesEngineersLocked ? `<span class="resource-locked">🔒${s.dronesEngineersLocked}</span>` : ''}
       </div>
-      <div class="resource-cell food">
+      <div class="resource-cell food ${s.nahrung < dailyFoodConsumption * 1.5 ? 'resource-critical' : ''}">
         <img src="/assets/icon_food.png" alt="Food" class="res-icon" onerror="this.style.display='none'">
         <span class="resource-value">${s.nahrung}</span>
+        <span class="resource-consumption">(-${dailyFoodConsumption})</span>
       </div>
-      <div class="resource-cell o2">
+      <div class="resource-cell o2 ${s.sauerstoff < dailyO2Consumption * 1.5 ? 'resource-critical' : ''}">
         <img src="/assets/icon_o2.png" alt="O2" class="res-icon" onerror="this.style.display='none'">
         <span class="resource-value">${s.sauerstoff}</span>
+        <span class="resource-consumption">(-${dailyO2Consumption})</span>
       </div>
       <div class="resource-cell minerals">
         <img src="/assets/icon_min.png" alt="Minerals" class="res-icon" onerror="this.style.display='none'">
@@ -1297,10 +1359,92 @@ export default class UIManager {
   }
 
   log(text) {
-    const el = document.createElement('div');
-    el.className = 'log-line'; 
-    el.textContent = `[Day ${this.scene?.state.day || 1}] ${text}`;
-    this.el.log.prepend(el);
+    // Major alerts become toasts
+    const alertPatterns = [
+      { regex: /RIOT|CRITICAL|⚠️|Starvation|Uprising|MORALE/i, type: 'error' },
+      { regex: /Logistics Failure|Assembly partially blocked/i, type: 'warning' },
+      { regex: /✅|complete|success|Researched/i, type: 'success' }
+    ];
+
+    let toastType = 'info';
+    for (const pattern of alertPatterns) {
+      if (pattern.regex.test(text)) {
+        toastType = pattern.type;
+        break;
+      }
+    }
+
+    // Show toast for major events
+    if (toastType !== 'info' || text.includes('🔥') || text.includes('💀') || text.includes('👶')) {
+      this.showToast(text, toastType);
+    }
+  }
+
+  showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    // Limit to 5 visible toasts
+    const existingToasts = container.querySelectorAll('.toast:not(.toast-exit)');
+    if (existingToasts.length >= 5) {
+      existingToasts[0].classList.add('toast-exit');
+      setTimeout(() => existingToasts[0].remove(), 300);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    const icons = {
+      error: '🔥',
+      warning: '⚠️',
+      success: '✅',
+      info: 'ℹ️'
+    };
+
+    toast.innerHTML = `
+      <div class="toast-icon">${icons[type] || icons.info}</div>
+      <div class="toast-content">
+        <div class="toast-message">${message}</div>
+      </div>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('toast-exit');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  spawnFloatingText(value, x, y, type = 'info') {
+    const fct = document.createElement('div');
+    fct.className = `floating-text ${type}`;
+    fct.textContent = value > 0 ? `+${value}` : `${value}`;
+    fct.style.left = `${x}px`;
+    fct.style.top = `${y}px`;
+    document.body.appendChild(fct);
+
+    setTimeout(() => fct.remove(), 1500);
+  }
+
+  spawnFloatingTextOnResource(resourceClass, value) {
+    const cell = document.querySelector(`.resource-cell.${resourceClass}`);
+    if (!cell) return;
+
+    const rect = cell.getBoundingClientRect();
+    // Skip if cell is off-screen
+    if (rect.top < 0 || rect.left < 0 || rect.bottom > window.innerHeight || rect.right > window.innerWidth) {
+      return;
+    }
+
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    let type = 'info';
+    if (value > 0) type = 'positive';
+    else if (value < 0) type = 'negative';
+
+    this.spawnFloatingText(value, x, y, type);
   }
 
   showEnding(type) {

@@ -3,7 +3,11 @@
     "allow": [
       "Bash(winget install *)",
       "Bash(npm install *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(npx playwright *)",
+      "Bash(pkill -f \"playwright codegen\")",
+      "Bash(curl -s 'http://localhost:5173')"
     ]
   }
 }

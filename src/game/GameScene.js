@@ -8,6 +8,7 @@ export default class GameScene extends Phaser.Scene {
     this.MAP_W = 16;
     this.MAP_H = 16;
     this.buildMode = null;
+    this.lastHoveredTile = null;
   }
 
   preload() {
@@ -35,8 +36,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.scene.pause();
     this.state = this.createInitialState();
+
     const mapW = this.MAP_W * this.TILE_SIZE;
     const mapH = this.MAP_H * this.TILE_SIZE;
     
@@ -68,6 +69,9 @@ export default class GameScene extends Phaser.Scene {
     
     this.executeBuild(7, 7, 'tile_palace', palaceConfig, false, true, false);
     this.palaceTile = this.tiles[7 + 7*this.MAP_W];
+
+    // Create morale particle emitter over palace
+    this.createMoraleParticles();
 
     this.executeBuild(7, 8, 'tile_farm', farmConfig, false, true, false);
     this.executeBuild(6, 7, 'tile_farm', farmConfig, false, true, false);
@@ -116,6 +120,48 @@ export default class GameScene extends Phaser.Scene {
       childLaborDaysRemaining: 0,
       cooldowns: { propaganda: 0, inquisition: 0, social: 0, suppressRiots: 0, manipulation: 0, publicHealth: 0, childLabor: 0 }
     };
+  }
+
+  createMoraleParticles() {
+    if (!this.palaceTile) return;
+
+    const px = this.palaceTile.x * this.TILE_SIZE + this.TILE_SIZE / 2;
+    const py = this.palaceTile.y * this.TILE_SIZE;
+
+    // Check if texture exists, fallback to graphics if not
+    if (!this.textures.exists('bg_space')) {
+      console.warn('bg_space texture not found, skipping morale particles');
+      return;
+    }
+
+    this.moraleEmitter = this.add.particles(px, py, 'bg_space', {
+      speed: { min: 10, max: 30 },
+      angle: { min: 260, max: 280 },
+      scale: { start: 0.3, end: 0 },
+      alpha: { start: 0.6, end: 0 },
+      lifespan: 2000,
+      frequency: 500,
+      quantity: 1,
+      tint: 0x00ff88
+    });
+  }
+
+  updateMoraleParticles(happiness) {
+    if (!this.moraleEmitter) return;
+
+    let tint = 0xff3366; // Red (low morale)
+    let frequency = 800;
+
+    if (happiness >= 80) {
+      tint = 0x00ff88; // Green
+      frequency = 300;
+    } else if (happiness >= 50) {
+      tint = 0xffcc00; // Yellow
+      frequency = 500;
+    }
+
+    this.moraleEmitter.setParticleTint(tint);
+    this.moraleEmitter.setFrequency(frequency);
   }
 
   getTile(tx, ty) {
@@ -173,6 +219,38 @@ export default class GameScene extends Phaser.Scene {
         cam.scrollY -= (pointer.y - this.panStart.y) / cam.zoom;
         this.panStart = {x: pointer.x, y: pointer.y};
       }
+
+      // Tile hover effect
+      const tx = Math.floor(w.x / this.TILE_SIZE);
+      const ty = Math.floor(w.y / this.TILE_SIZE);
+      const hoveredTile = this.getTile(tx, ty);
+
+      // Clear previous hover
+      if (this.lastHoveredTile && this.lastHoveredTile !== hoveredTile) {
+        const lastBuilding = this.lastHoveredTile.building;
+        if (lastBuilding && lastBuilding.sprite && lastBuilding.hoverTween) {
+          lastBuilding.hoverTween.stop();
+          lastBuilding.sprite.setScale(lastBuilding.originalScaleX || 1, lastBuilding.originalScaleY || 1);
+          lastBuilding.hoverTween = null;
+        }
+      }
+
+      // Apply hover to current tile
+      if (hoveredTile && hoveredTile.building && hoveredTile.building.sprite && hoveredTile.building.daysRemaining === 0 && !this.buildMode) {
+        const b = hoveredTile.building;
+        if (!b.hoverTween) {
+          const originalScaleX = b.originalScaleX || b.sprite.scaleX;
+          const originalScaleY = b.originalScaleY || b.sprite.scaleY;
+          b.hoverTween = this.tweens.add({
+            targets: b.sprite,
+            scaleX: originalScaleX * 1.05,
+            scaleY: originalScaleY * 1.05,
+            duration: 150,
+            ease: 'Power1'
+          });
+        }
+      }
+      this.lastHoveredTile = hoveredTile;
 
       if (this.buildMode) {
         const tx = Math.floor(w.x / this.TILE_SIZE);
@@ -345,6 +423,8 @@ export default class GameScene extends Phaser.Scene {
     const spr = this.add.image(sprX, sprY, key).setDisplaySize(this.TILE_SIZE*(is2x2?2:1), this.TILE_SIZE*(is2x2?2:1));
     if(!instant) { spr.setTint(0x4466aa); spr.setAlpha(0.6); }
     bld.sprite = spr;
+    bld.originalScaleX = spr.scaleX;
+    bld.originalScaleY = spr.scaleY;
 
     if (!instant) {
       const bldW = this.TILE_SIZE * (is2x2 ? 2 : 1);
@@ -459,6 +539,15 @@ export default class GameScene extends Phaser.Scene {
         if (t.building && t.building.key === 'tile_farm' && !t.destroyed) {
           t.destroyed = true;
           t.building.sprite.setTint(0xff0000);
+          // Stop any active tweens
+          if (t.building.glowTween) {
+            t.building.glowTween.stop();
+            t.building.glowTween = null;
+          }
+          if (t.building.hoverTween) {
+            t.building.hoverTween.stop();
+            t.building.hoverTween = null;
+          }
           // Release any locked workers/engineers from destroyed building
           if (t.building.lockedWorkers) this.state.workersLocked = Math.max(0, this.state.workersLocked - t.building.lockedWorkers);
           if (t.building.lockedEngineers) this.state.constructionEngineersLocked = Math.max(0, this.state.constructionEngineersLocked - t.building.lockedEngineers);
@@ -672,6 +761,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.syncSentimentAliases();
 
+    // Update morale particle emitter
+    this.updateMoraleParticles(this.state.zufriedenheit);
+
     if (this.state.happiness <= 0 && this.state.fear < 40) {
       this.triggerEnding('Uprising');
       return;
@@ -724,6 +816,20 @@ export default class GameScene extends Phaser.Scene {
         }
       } else {
         if(b.key === 'tile_housing') { /* popCap already updated */ }
+
+        // Add subtle pulse glow to active production buildings
+        if(['tile_farm', 'tile_o2', 'tile_mine', 'atmo_synthesizer', 'planetary_cracker', 'planet_stabilizer'].includes(b.key) && b.sprite) {
+          if (!b.sprite.glowTween) {
+            b.sprite.glowTween = this.tweens.add({
+              targets: b.sprite,
+              alpha: { from: 1, to: 0.85 },
+              duration: 2000,
+              yoyo: true,
+              repeat: -1,
+              ease: 'Sine.easeInOut'
+            });
+          }
+        }
 
         // Only add to resource buildings if has workers assigned
         if(['tile_farm', 'tile_o2', 'tile_mine'].includes(b.key) && b.workers > 0) {
@@ -881,6 +987,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   startWithPreset(presetName) {
+    if (!this.state) {
+      console.error('State not initialized');
+      return;
+    }
+
     if (presetName === 'wealthy') {
       this.state.geld = 5000;
       this.state.popWorkers = 15;
