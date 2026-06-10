@@ -881,6 +881,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   startWithPreset(presetName) {
+<<<<<<< Updated upstream
+=======
+    if (!this.state) {
+      console.error('State not initialized - create() may not have finished');
+      return;
+    }
+
+>>>>>>> Stashed changes
     if (presetName === 'wealthy') {
       this.state.geld = 5000;
       this.state.popWorkers = 15;
@@ -911,7 +919,6 @@ export default class GameScene extends Phaser.Scene {
     this.state.popCap = 20;
     this.syncSentimentAliases();
     this.events.emit('state-updated', this.state);
-    this.scene.resume();
   }
 
   triggerEnding(type) {
