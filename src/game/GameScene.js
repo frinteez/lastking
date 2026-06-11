@@ -35,13 +35,33 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Консольные команды для дебага (набери в консоли браузера: game.setRes('nahrung', 500))
+    window.game = this;
+    window.setRes = (res, val) => { 
+        window.game.state[res] = val; 
+        window.game.events.emit('state-updated', window.game.state); 
+        console.log(`[DEBUG] ${res} set to ${val}`);
+    };
+    window.nextDayFast = (days) => { 
+        for(let i=0; i<days; i++) window.game.nextDay(); 
+        console.log(`[DEBUG] Skipped ${days} days`);
+    };
+
     this.state = this.createInitialState();
     this.stateInitialized = true;
     const mapW = this.MAP_W * this.TILE_SIZE;
     const mapH = this.MAP_H * this.TILE_SIZE;
 
     this.add.image(mapW / 2, mapH / 2, 'bg_space').setOrigin(0.5).setScale(1.8).setDepth(-2);
-    this.add.image(0, 0, 'bg_planet').setOrigin(0).setDisplaySize(mapW, mapH).setDepth(-1);
+    this.bgPlanet = this.add.image(0, 0, 'bg_planet').setOrigin(0).setDisplaySize(mapW, mapH).setDepth(-1);
+
+    this.tweens.add({
+      targets: this.bgPlanet,
+      angle: 360,
+      duration: 360000,
+      repeat: -1,
+      ease: 'Linear'
+    });
 
     this.tiles = Array(this.MAP_W * this.MAP_H).fill(null).map((_, i) => ({
       x: i % this.MAP_W, y: Math.floor(i / this.MAP_W), sprite: null, building: null, destroyed: false
@@ -86,7 +106,7 @@ export default class GameScene extends Phaser.Scene {
     // Pause and wait for preset selection
     this.scene.pause();
     this.events.emit('state-updated', this.state);
-  }
+      }
 
   createInitialState() {
     return {
@@ -118,10 +138,12 @@ export default class GameScene extends Phaser.Scene {
       academyEnrollments: [],
 
       netIncome: { food: 0, o2: 0 },
+      starvationGraceDays: 3,
+      martialLawDaysRemaining: 0,
 
       techs: {}, factionLoyalty: { rust: 50, order: 50, guild: 50 }, gameEnded: false,
       childLaborDaysRemaining: 0,
-      cooldowns: { propaganda: 0, inquisition: 0, social: 0, suppressRiots: 0, manipulation: 0, publicHealth: 0, childLabor: 0 }
+      cooldowns: { propaganda: 0, inquisition: 0, social: 0, suppressRiots: 0, manipulation: 0, publicHealth: 0, childLabor: 0, martialLaw: 0 }
     };
   }
 
@@ -531,8 +553,18 @@ export default class GameScene extends Phaser.Scene {
       this.state.angst = Math.min(100, this.state.angst + 20);
       this.state.childLaborDaysRemaining = 10;
       this.state.cooldowns.childLabor = 15;
+    } else if (type === 'martialLaw') {
+      if (this.state.geld < 500) {
+        this.events.emit('cosmic-event', '❌ Not enough Money for Martial Law.');
+        return;
+      }
+      this.state.geld -= 500;
+      this.state.zufriedenheit = Math.max(0, this.state.zufriedenheit - 20);
+      this.state.angst = Math.min(100, this.state.angst + 40);
+      this.state.martialLawDaysRemaining = 5;
+      this.state.cooldowns.martialLaw = 10;
     }
-    
+
     this.events.emit('cosmic-event', `📜 Decree Executed: ${type.toUpperCase()}`);
     this.syncSentimentAliases();
     this.events.emit('state-updated', this.state);
@@ -670,18 +702,43 @@ export default class GameScene extends Phaser.Scene {
     
     // Population & Lifecycle Engine
     const totalPop = getTotalPopulation(this.state);
-    const dailyConsumption = (this.state.popChildren * 1) + (this.state.popWorkers * 2) + (this.state.popEngineers * 3);
+    const dailyFoodO2 = (this.state.popChildren * 1) + (this.state.popWorkers * 2) + (this.state.popEngineers * 3);
 
-    this.state.nahrung -= dailyConsumption;
-    this.state.sauerstoff -= dailyConsumption;
+    this.state.nahrung -= dailyFoodO2;
+    this.state.sauerstoff -= dailyFoodO2;
 
     // Clamp physical resources to 0 minimum
     this.state.nahrung = Math.max(0, this.state.nahrung);
     this.state.sauerstoff = Math.max(0, this.state.sauerstoff);
 
-    const foodDeficit = this.state.nahrung === 0 ? dailyConsumption : 0;
-    const o2Deficit = this.state.sauerstoff === 0 ? dailyConsumption : 0;
-    
+    const foodDeficit = this.state.nahrung === 0 ? dailyFoodO2 : 0;
+    const o2Deficit = this.state.sauerstoff === 0 ? dailyFoodO2 : 0;
+
+    // Starvation Grace Period (3 days)
+    if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
+      this.state.starvationGraceDays--;
+
+      if (this.state.starvationGraceDays > 0) {
+        this.events.emit('cosmic-event', `⚠️ CRITICAL: ${this.state.starvationGraceDays} days until death. Happiness -20.`);
+        this.state.zufriedenheit -= 20;
+      } else {
+        const totalPop = this.state.popChildren + this.state.popWorkers + this.state.popEngineers;
+        if (totalPop > 0) {
+          if (this.state.popChildren > 0) {
+            this.state.popChildren--;
+          } else if (this.state.popWorkers > 0) {
+            this.state.popWorkers--;
+          } else if (this.state.popEngineers > 0) {
+            this.state.popEngineers--;
+          }
+          this.events.emit('cosmic-event', '💀 1 citizen has died from starvation.');
+        }
+        this.state.starvationGraceDays = 3;
+      }
+    } else {
+      this.state.starvationGraceDays = 3;
+    }
+
     // BIRTHS: If Happiness > 60 and Food > 0
     if (this.state.nahrung > 0 && this.state.zufriedenheit > 60 && totalPop < this.state.popCap) {
       if(Math.random() < 0.3) {
@@ -698,29 +755,7 @@ export default class GameScene extends Phaser.Scene {
         this.events.emit('cosmic-event', `👶 New child born!`);
       }
     }
-    
-    // DEATH: If Food <= 0 or O2 <= 0, reduce population
-    if (this.state.nahrung === 0 || this.state.sauerstoff === 0) {
-      const removeFromRoster = (type) => {
-        const idx = this.state.citizenRoster.findIndex(entry => entry.type === type);
-        if (idx >= 0) this.state.citizenRoster.splice(idx, 1);
-      };
 
-      if (this.state.popEngineers > 0) {
-        this.state.popEngineers--;
-        removeFromRoster('engineer');
-        this.events.emit('cosmic-event', `💀 Starvation. Engineer perished.`);
-      } else if (this.state.popWorkers > 0) {
-        this.state.popWorkers--;
-        removeFromRoster('worker');
-        this.events.emit('cosmic-event', `💀 Starvation. Worker perished.`);
-      } else if (this.state.popChildren > 0) {
-        this.state.popChildren--;
-        removeFromRoster('child');
-        this.events.emit('cosmic-event', `💀 Starvation. Child perished.`);
-      }
-    }
-    
     this.processEducationQueues();
 
     // DETERMINISTIC BUILDING STATUS EVALUATION
@@ -826,11 +861,49 @@ export default class GameScene extends Phaser.Scene {
       this.state.childLaborDaysRemaining--;
     }
 
+    // Martial Law countdown
+    if (this.state.martialLawDaysRemaining > 0) {
+      this.state.martialLawDaysRemaining--;
+      if (this.state.martialLawDaysRemaining === 0) {
+        this.events.emit('cosmic-event', '⚖️ Martial Law expired. Riot protection removed.');
+      }
+    }
+
     this.syncSentimentAliases();
 
     if (this.state.happiness <= 0 && this.state.fear < 40) {
       this.triggerEnding('Uprising');
       return;
+    }
+
+    // Consume daily resources
+    const dailyConsumption = (this.state.popChildren * 1) + (this.state.popWorkers * 2) + (this.state.popEngineers * 3);
+    this.state.nahrung -= dailyConsumption;
+    this.state.sauerstoff -= dailyConsumption;
+
+    // Starvation Grace Period (3 days)
+    if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
+      this.state.starvationGraceDays--;
+
+      if (this.state.starvationGraceDays > 0) {
+        this.events.emit('cosmic-event', `⚠️ CRITICAL: ${this.state.starvationGraceDays} days until death. Happiness -20.`);
+        this.state.zufriedenheit -= 20;
+      } else {
+        const totalPop = this.state.popChildren + this.state.popWorkers + this.state.popEngineers;
+        if (totalPop > 0) {
+          if (this.state.popChildren > 0) {
+            this.state.popChildren--;
+          } else if (this.state.popWorkers > 0) {
+            this.state.popWorkers--;
+          } else if (this.state.popEngineers > 0) {
+            this.state.popEngineers--;
+          }
+          this.events.emit('cosmic-event', '💀 1 citizen has died from starvation.');
+        }
+        this.state.starvationGraceDays = 3;
+      }
+    } else {
+      this.state.starvationGraceDays = 3;
     }
 
     if (this.state.efficiencyOverrideDays > 0) {
@@ -843,15 +916,15 @@ export default class GameScene extends Phaser.Scene {
       }
       // else keep current efficiency from riot/inquisition
     } else {
-      let baseE = (this.state.zufriedenheit + (this.state.angst * 1.5)) / 80;
+      let baseE = (this.state.zufriedenheit * 0.7 + this.state.angst * 0.3) / 100;
       this.state.efficiency = Math.min(1.0, baseE);
       if (this.state.gesundheit < 50) this.state.efficiency *= 0.7;
     }
     this.state.efficiency = Math.max(0, this.state.efficiency);
 
-    if (this.state.nahrung <= 0 && this.state.angst < 40) this.triggerRiot('Food Riot');
-    else if (T >= 3 && this.state.zufriedenheit < 20) this.triggerRiot('Tax Strike');
-    else if (this.state.planet < 40 && this.state.wissen > 60) this.triggerRiot('Eco-Protest');
+    if (this.state.nahrung <= 0 && this.state.angst < 40 && this.state.martialLawDaysRemaining <= 0) this.triggerRiot('Food Riot');
+    else if (T >= 3 && this.state.zufriedenheit < 20 && this.state.martialLawDaysRemaining <= 0) this.triggerRiot('Tax Strike');
+    else if (this.state.planet < 40 && this.state.wissen > 60 && this.state.martialLawDaysRemaining <= 0) this.triggerRiot('Eco-Protest');
 
     // Calculate population capacity once per day
     this.state.popCap = 20 + (this.tiles.filter(t => t.building && t.building.key === 'tile_housing' && t.building.daysRemaining === 0).length * 10);
@@ -885,11 +958,16 @@ export default class GameScene extends Phaser.Scene {
 
         // Only add to resource buildings if has workers assigned AND is active
         if(['tile_farm', 'tile_o2', 'tile_mine'].includes(b.key) && b.workers > 0 && status === 'active') {
-          resourceBuildings.push({tile: t, bld: b});
+          if (this.state.childLaborDaysRemaining > 0) {
+            const childBonus = Math.floor(this.state.popChildren * 0.5);
+            resourceBuildings.push({tile: t, bld: b, childBonus});
+          } else {
+            resourceBuildings.push({tile: t, bld: b});
+          }
         }
 
         if(b.key === 'tile_uni' && status === 'active') this.state.wissen += Math.floor(5 * E);
-        if(b.key === 'planet_stabilizer' && status === 'active') this.state.planet += Math.floor(2 * E);
+        if(b.key === 'planet_stabilizer' && status === 'active') this.state.planet += Math.floor(5 * E);
         if(b.key === 'atmo_synthesizer' && status === 'active') this.state.sauerstoff += Math.floor(50 * E);
         if(b.key === 'planetary_cracker' && status === 'active') {
           this.state.minerals += Math.floor(40 * E);
@@ -931,15 +1009,32 @@ export default class GameScene extends Phaser.Scene {
     for (const rb of resourceBuildings) {
       requiredSlots += (rb.bld && rb.bld.sprite && rb.bld.sprite.displayWidth > this.TILE_SIZE) ? 2 : 1;
     }
+
+    // Prioritize drones: O2 > Food > Minerals
+    resourceBuildings.sort((a, b) => {
+      const priority = { tile_o2: 3, tile_farm: 2, tile_mine: 1 };
+      return (priority[b.bld.key] || 0) - (priority[a.bld.key] || 0);
+    });
+
     const produceCount = Math.min(this.state.drones.active, resourceBuildings.length);
     for(let i=0; i<produceCount; i++) {
       const target = resourceBuildings[i];
       const status = target.bld.status || 'active';
       if (status === 'active') {
-        if(target.bld.key === 'tile_farm') this.state.nahrung += Math.floor(15 * E);
-        if(target.bld.key === 'tile_o2') this.state.sauerstoff += Math.floor(15 * E);
+        if(target.bld.key === 'tile_farm') {
+          const baseProduction = Math.floor(15 * E);
+          const childBonus = target.childBonus ? Math.floor(target.childBonus * 7.5 * E) : 0;
+          this.state.nahrung += baseProduction + childBonus;
+        }
+        if(target.bld.key === 'tile_o2') {
+          const baseProduction = Math.floor(15 * E);
+          const childBonus = target.childBonus ? Math.floor(target.childBonus * 7.5 * E) : 0;
+          this.state.sauerstoff += baseProduction + childBonus;
+        }
         if(target.bld.key === 'tile_mine') {
-          this.state.minerals += Math.floor(10 * E);
+          const baseProduction = Math.floor(10 * E);
+          const childBonus = target.childBonus ? Math.floor(target.childBonus * 5 * E) : 0;
+          this.state.minerals += baseProduction + childBonus;
           this.state.planet -= 0.5;
         }
         this.animateDroneFlight(target.tile);
@@ -947,6 +1042,15 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.state.planet = Phaser.Math.Clamp(this.state.planet, 0, 100);
+
+    // Planet desaturation at low health
+    if (this.bgPlanet && this.state.planet < 50) {
+      const grayAmount = (50 - this.state.planet) / 50;
+      const tintValue = 255 - Math.floor(grayAmount * 80);
+      this.bgPlanet.setTint(Phaser.Display.Color.GetColor(tintValue, tintValue, tintValue));
+    } else if (this.bgPlanet) {
+      this.bgPlanet.clearTint();
+    }
 
     if (requiredSlots > this.state.drones.active) {
       this.events.emit('cosmic-event', `⚠️ Logistics Failure: ${requiredSlots - this.state.drones.active} drone slots unavailable!`);
@@ -982,48 +1086,51 @@ export default class GameScene extends Phaser.Scene {
     if (workBuildings.length === 0) return;
 
     const roster = Array.isArray(this.state.citizenRoster) ? this.state.citizenRoster : [];
-    const dotsToSpawn = Math.min(30, roster.length);
+    const dotsToSpawn = Math.min(10, roster.length);
 
     for (let i = 0; i < dotsToSpawn; i++) {
-      const citizen = roster[i];
-      const citizenKey = citizen.type === 'worker'
-        ? 'citizen_uneducated'
-        : citizen.type === 'engineer'
-          ? 'citizen_educated'
-          : 'citizen_child';
+      this.time.delayedCall(i * 50, () => {
+        if (i >= roster.length) return;
+        const citizen = roster[i];
+        const citizenKey = citizen.type === 'worker'
+          ? 'citizen_uneducated'
+          : citizen.type === 'engineer'
+            ? 'citizen_educated'
+            : 'citizen_child';
 
-      const homeTile = this.tiles[citizen.homeTileIndex] || this.palaceTile;
-      const startX = homeTile.x * this.TILE_SIZE + 32;
-      const startY = homeTile.y * this.TILE_SIZE + 32;
+        const homeTile = this.tiles[citizen.homeTileIndex] || this.palaceTile;
+        const startX = homeTile.x * this.TILE_SIZE + 32;
+        const startY = homeTile.y * this.TILE_SIZE + 32;
 
-      const targetBld = Phaser.Math.RND.pick(workBuildings);
-      const targetSpr = targetBld.sprite;
-      const citizenSprite = this.add.image(startX, startY, citizenKey).setDisplaySize(20, 20);
+        const targetBld = Phaser.Math.RND.pick(workBuildings);
+        const targetSpr = targetBld.sprite;
+        const citizenSprite = this.add.image(startX, startY, citizenKey).setDisplaySize(20, 20);
 
-      this.tweens.add({
-        targets: citizenSprite,
-        x: targetSpr.x,
-        y: targetSpr.y,
-        duration: 2000,
-        ease: 'Power1',
-        onComplete: () => {
-          this.tweens.add({
-            targets: citizenSprite,
-            angle: 360,
-            duration: 1000,
-            repeat: 1,
-            onComplete: () => {
-              this.tweens.add({
-                targets: citizenSprite,
-                x: startX,
-                y: startY,
-                duration: 2000,
-                ease: 'Power1',
-                onComplete: () => citizenSprite.destroy()
-              });
-            }
-          });
-        }
+        this.tweens.add({
+          targets: citizenSprite,
+          x: targetSpr.x,
+          y: targetSpr.y,
+          duration: 2000,
+          ease: 'Power1',
+          onComplete: () => {
+            this.tweens.add({
+              targets: citizenSprite,
+              angle: 360,
+              duration: 1000,
+              repeat: 1,
+              onComplete: () => {
+                this.tweens.add({
+                  targets: citizenSprite,
+                  x: startX,
+                  y: startY,
+                  duration: 2000,
+                  ease: 'Power1',
+                  onComplete: () => citizenSprite.destroy()
+                });
+              }
+            });
+          }
+        });
       });
     }
   }

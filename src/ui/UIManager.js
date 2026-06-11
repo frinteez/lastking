@@ -224,6 +224,7 @@ export default class UIManager {
         summaryDiscount: document.getElementById(`summary-discount-${faction}`),
         summaryTotal: document.getElementById(`summary-total-${faction}`),
         dialogue: document.getElementById(`dialogue-${faction}`),
+        acceptanceBar: document.getElementById(`acceptance-bar-${faction}`),
         selectedResource: null
       };
     });
@@ -608,11 +609,19 @@ export default class UIManager {
 
     tw.summaryQty.textContent = String(qty);
     tw.summaryBase.innerHTML = `${calculatedBasePrice} <img src="${this.currencyCatalog[currency]?.icon || '/assets/icon_money.png'}" class="inline-icon" alt="${currency}">`;
-    if (!tw.offerInput.value || Number.isNaN(parseInt(tw.offerInput.value, 10))) {
-      tw.offerInput.value = String(calculatedBasePrice);
+
+    const offer = calculatedBasePrice;
+    tw.offerInput.value = String(offer);
+
+    const factionLoyalty = state.factionLoyalty ? (state.factionLoyalty[factionId] || 0) : 50;
+    const maxDiscount = Math.max(0, Math.min(0.4, factionLoyalty / 250));
+    const requiredOffer = Math.max(1, Math.floor(calculatedBasePrice * (1 - maxDiscount)));
+
+    const acceptancePercent = Math.min(100, (offer / requiredOffer) * 100);
+    if (tw.acceptanceBar) {
+      tw.acceptanceBar.style.width = `${acceptancePercent}%`;
     }
 
-    const offer = Math.max(0, parseInt(tw.offerInput.value) || calculatedBasePrice);
     const ratio = calculatedBasePrice > 0 ? offer / calculatedBasePrice : 1;
     tw.summaryDiscount.textContent = ratio.toFixed(2);
     tw.summaryTotal.innerHTML = `${offer} <img src="${this.currencyCatalog[currency]?.icon || '/assets/icon_money.png'}" class="inline-icon" alt="${currency}">`;
@@ -1031,9 +1040,27 @@ export default class UIManager {
     } else if (classList.includes('knowledge')) {
       tooltipHTML = `<strong>Knowledge</strong><div>Used for tech research</div>`;
     } else if (classList.includes('happiness')) {
-      tooltipHTML = `<strong>Happiness</strong><div>Directly boosts colony stability and productivity</div>`;
+      const eff = this.scene?.state?.efficiency || 0;
+      tooltipHTML = `
+        <strong>Happiness</strong>
+        <div>Boosts colony stability and productivity</div>
+        <div style="margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;">
+          <strong style="color:var(--accent-cyan);">Global Efficiency: ${Math.floor(eff * 100)}%</strong><br>
+          <span style="font-size:10px;">Formula: (Happiness × 0.7 + Fear × 0.3) / 100</span><br>
+          <span style="font-size:10px;">Efficiency multiplies ALL resource production.</span>
+        </div>
+      `;
     } else if (classList.includes('fear')) {
-      tooltipHTML = `<strong>Fear</strong><div>Raises control but can trigger unrest at extremes</div>`;
+      const eff = this.scene?.state?.efficiency || 0;
+      tooltipHTML = `
+        <strong>Fear</strong>
+        <div>Tyranny prevents strikes, but exhausted workers produce less</div>
+        <div style="margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;">
+          <strong style="color:var(--accent-cyan);">Global Efficiency: ${Math.floor(eff * 100)}%</strong><br>
+          <span style="font-size:10px;">High Fear (100) + Low Happiness (0) = 30% efficiency</span><br>
+          <span style="font-size:10px;">Balanced: Happiness=70, Fear=30 → 58% efficiency</span>
+        </div>
+      `;
     } else if (classList.includes('planet')) {
       tooltipHTML = `<strong>Planet Health</strong><div>Environmental collapse begins below 50%</div>`;
     } else if (classList.includes('day')) {
@@ -1228,59 +1255,63 @@ export default class UIManager {
       };
     }
 
-    // TOP BAR: Resource Cells Design (Clean, single border)
+    // TOP BAR: Resource Cells Design (2 rows)
     const totalPop = getTotalPopulation(s);
     const resourceCells = `
-      <div class="resource-cell money">
-        <img src="/assets/icon_money.png" alt="Money" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.geld}</span>
+      <div class="resource-row">
+        <div class="resource-cell money">
+          <img src="/assets/icon_money.png" alt="Money" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.geld}</span>
+        </div>
+        <div class="resource-cell population">
+          <img src="/assets/icon_pop.png" alt="Pop" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${totalPop}/${s.popCap}</span>
+        </div>
+        <div class="resource-cell drones">
+          <span style="font-size: 12px;"><img src="/assets/icon_drone.png" alt="Drones" class="res-icon" style="display:inline; height:16px;"></span>
+          <span class="resource-value">${s.drones.owned}/${s.drones.capacity}</span>
+          ${s.dronesEngineersLocked ? `<span class="resource-locked">🔒${s.dronesEngineersLocked}</span>` : ''}
+        </div>
+        <div class="resource-cell food">
+          <img src="/assets/icon_food.png" alt="Food" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.nahrung}</span>
+          ${this.renderNetIncome(s.netIncome?.food || 0)}
+        </div>
+        <div class="resource-cell o2">
+          <img src="/assets/icon_o2.png" alt="O2" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.sauerstoff}</span>
+          ${this.renderNetIncome(s.netIncome?.o2 || 0)}
+        </div>
+        <div class="resource-cell minerals">
+          <img src="/assets/icon_min.png" alt="Minerals" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.minerals}</span>
+        </div>
       </div>
-      <div class="resource-cell population">
-        <img src="/assets/icon_pop.png" alt="Pop" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${totalPop}/${s.popCap}</span>
-      </div>
-      <div class="resource-cell drones">
-        <span style="font-size: 12px;"><img src="/assets/icon_drone.png" alt="Drones" class="res-icon" style="display:inline; height:16px;"></span>
-        <span class="resource-value">${s.drones.owned}/${s.drones.capacity}</span>
-        ${s.dronesEngineersLocked ? `<span class="resource-locked">🔒${s.dronesEngineersLocked}</span>` : ''}
-      </div>
-      <div class="resource-cell food">
-        <img src="/assets/icon_food.png" alt="Food" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.nahrung}</span>
-        ${this.renderNetIncome(s.netIncome?.food || 0)}
-      </div>
-      <div class="resource-cell o2">
-        <img src="/assets/icon_o2.png" alt="O2" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.sauerstoff}</span>
-        ${this.renderNetIncome(s.netIncome?.o2 || 0)}
-      </div>
-      <div class="resource-cell minerals">
-        <img src="/assets/icon_min.png" alt="Minerals" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.minerals}</span>
-      </div>
-      <div class="resource-cell health">
-        <img src="/assets/icon_health.png" alt="Health" class="res-icon">
-        <span class="resource-value">${Math.floor(s.gesundheit)}</span>
-      </div>
-      <div class="resource-cell knowledge">
-        <img src="/assets/icon_knowledge.png" alt="Knowledge" class="res-icon">
-        <span class="resource-value">${s.wissen}</span>
-      </div>
-      <div class="resource-cell happiness">
-        <img src="/assets/icon_happiness.png" alt="Happiness" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${Math.floor(s.zufriedenheit)}</span>
-      </div>
-      <div class="resource-cell fear">
-        <img src="/assets/fear.png" alt="Fear" class="res-icon">
-        <span class="resource-value">${s.angst}</span>
-      </div>
-      <div class="resource-cell planet">
-        <img src="/assets/icon_planet.png" alt="Planet" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${Math.floor(s.planet)}%</span>
-      </div>
-      <div class="resource-cell day">
-        <span style="font-size: 12px;"><img src="/assets/icon_clock.png" alt="Day" class="res-icon" style="display:inline; height:16px;"></span>
-        <span class="resource-value">Day ${s.day}</span>
+      <div class="resource-row">
+        <div class="resource-cell health">
+          <img src="/assets/icon_health.png" alt="Health" class="res-icon">
+          <span class="resource-value">${Math.floor(s.gesundheit)}</span>
+        </div>
+        <div class="resource-cell knowledge">
+          <img src="/assets/icon_knowledge.png" alt="Knowledge" class="res-icon">
+          <span class="resource-value">${s.wissen}</span>
+        </div>
+        <div class="resource-cell happiness">
+          <img src="/assets/icon_happiness.png" alt="Happiness" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${Math.floor(s.zufriedenheit)}</span>
+        </div>
+        <div class="resource-cell fear">
+          <img src="/assets/fear.png" alt="Fear" class="res-icon">
+          <span class="resource-value">${s.angst}</span>
+        </div>
+        <div class="resource-cell planet">
+          <img src="/assets/icon_planet.png" alt="Planet" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${Math.floor(s.planet)}%</span>
+        </div>
+        <div class="resource-cell day">
+          <span style="font-size: 12px;"><img src="/assets/icon_clock.png" alt="Day" class="res-icon" style="display:inline; height:16px;"></span>
+          <span class="resource-value">Day ${s.day}</span>
+        </div>
       </div>
     `;
     
@@ -1304,7 +1335,7 @@ export default class UIManager {
     if (this.el.topbarContent) {
       Object.keys(changes).forEach(key => {
         const change = changes[key];
-        if (change !== 0 && (Math.abs(change) >= 5 || key.startsWith('pop'))) {
+        if (change !== 0 && (Math.abs(change) >= 1 || key.startsWith('pop'))) {
           const cellClass = key === 'geld' ? 'money' :
                            key === 'nahrung' ? 'food' :
                            key === 'sauerstoff' ? 'o2' :
@@ -1364,12 +1395,13 @@ export default class UIManager {
 
   renderNetIncome(netIncome) {
     const val = Math.floor(netIncome);
+    const bgColor = val < 0 ? 'rgba(255, 68, 68, 0.2)' : 'transparent';
     if (val > 0) {
-      return `<span style="color:#44ff44; font-size:10px; margin-left:4px;">(+${val})</span>`;
+      return `<span style="color:#44ff44; font-size:12px; margin-left:4px; padding:2px 4px; border-radius:3px; background:${bgColor};">(+${val})</span>`;
     } else if (val < 0) {
-      return `<span style="color:#ff4444; font-size:10px; margin-left:4px;">(${val})</span>`;
+      return `<span style="color:#ff4444; font-size:12px; margin-left:4px; padding:2px 4px; border-radius:3px; background:${bgColor};">(${val})</span>`;
     } else {
-      return `<span style="color:#888888; font-size:10px; margin-left:4px;">(0)</span>`;
+      return `<span style="color:#888888; font-size:12px; margin-left:4px; padding:2px 4px; border-radius:3px; background:${bgColor};">(0)</span>`;
     }
   }
 
@@ -1441,17 +1473,6 @@ export default class UIManager {
         cell.classList.add('resource-critical');
       }
     });
-  }
-
-  renderNetIncome(netIncome) {
-    const val = Math.floor(netIncome);
-    if (val > 0) {
-      return `<span style="color:#44ff44; font-size:10px; margin-left:2px;">+${val}</span>`;
-    } else if (val < 0) {
-      return `<span style="color:#ff4444; font-size:10px; margin-left:2px;">${val}</span>`;
-    } else {
-      return `<span style="color:#888888; font-size:10px; margin-left:2px;">0</span>`;
-    }
   }
 
   log(text) {
