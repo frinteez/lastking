@@ -16,9 +16,35 @@
 
 html, body {
   height: 100%; margin: 0; padding: 0;
-  background-color: var(--bg-dark);
+  background: linear-gradient(180deg, #05070a 0%, #0a0c12 100%);
   font-family: 'Inter', system-ui, sans-serif;
   color: var(--text-main); overflow: hidden;
+  position: relative;
+}
+
+html::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 200%; height: 200%;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,0.15), transparent),
+    radial-gradient(2px 2px at 60% 70%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 50% 50%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.15), transparent),
+    radial-gradient(2px 2px at 90% 60%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 33% 80%, rgba(255,255,255,0.1), transparent);
+  background-size: 200px 200px, 300px 300px, 150px 150px, 250px 250px, 180px 180px, 220px 220px;
+  background-position: 0 0, 40px 60px, 130px 270px, 70px 100px, 150px 50px, 90px 180px;
+  animation: driftStars 120s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+@keyframes driftStars {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-50%, -50%); }
 }
 
 #game-container {
@@ -116,10 +142,99 @@ html, body {
 .build-category h4 { margin: 0 0 8px 0; font-size: 10px; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--glass-border); padding-bottom: 4px;}
 .build-options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;}
 
-.log-panel { height: 180px; display: flex; flex-direction: column; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 6px; border: 1px solid var(--glass-border); }
-.log-header { font-size: 10px; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 6px; }
-.log-body { overflow-y: auto; font-size: 10px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
-.log-line { padding: 4px; border-left: 2px solid var(--accent-cyan); background: rgba(0,229,255,0.05); }
+/* Floating Text System - replaces static log */
+.floating-text {
+  position: absolute;
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 9999;
+  animation: floatUp 1.5s ease-out forwards;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.floating-text.positive { color: #44ff44; }
+.floating-text.negative { color: #ff4444; }
+.floating-text.neutral { color: #888888; }
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-40px); }
+}
+
+/* Danger Pulse - critical resource warning */
+.resource-critical {
+  animation: dangerPulse 2s ease-in-out infinite;
+  border-color: var(--accent-red) !important;
+}
+
+@keyframes dangerPulse {
+  0%, 100% { border-color: var(--accent-red); box-shadow: 0 0 0 0 rgba(255, 51, 102, 0.4); }
+  50% { border-color: #ff6688; box-shadow: 0 0 0 4px rgba(255, 51, 102, 0.2); }
+}
+
+/* Toast Notification System */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: 380px;
+}
+
+.toast {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 13px;
+  color: var(--text-main);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  animation: slideInFromTop 0.4s ease-out forwards;
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+.toast.fade-out {
+  animation: slideOutToTop 0.4s ease-out forwards;
+}
+
+@keyframes slideInFromTop {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideOutToTop {
+  to { opacity: 0; transform: translateY(-20px); }
+}
+
+.toast-success { border-left: 4px solid #44ff44; }
+.toast-warning { border-left: 4px solid #ffaa00; background: rgba(255, 170, 0, 0.08); }
+.toast-critical {
+  border-left: 4px solid #ff3366;
+  background: rgba(255, 51, 102, 0.08);
+  animation: slideInFromTop 0.4s ease-out, toastShake 0.5s ease-in-out 0.4s;
+}
+
+@keyframes toastShake {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  25% { transform: translateY(0) translateX(-5px); }
+  75% { transform: translateY(0) translateX(5px); }
+}
+
+/* Building Pulse Animation */
+.building-active-pulse {
+  animation: buildingPulse 3s ease-in-out infinite;
+}
+
+@keyframes buildingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
 
 .btn {
   border: 1px solid var(--glass-border); padding: 8px 12px; border-radius: 4px; 

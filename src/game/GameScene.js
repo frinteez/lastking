@@ -35,14 +35,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.scene.pause();
     this.state = this.createInitialState();
+    this.stateInitialized = true;
     const mapW = this.MAP_W * this.TILE_SIZE;
     const mapH = this.MAP_H * this.TILE_SIZE;
-    
+
     this.add.image(mapW / 2, mapH / 2, 'bg_space').setOrigin(0.5).setScale(1.8).setDepth(-2);
     this.add.image(0, 0, 'bg_planet').setOrigin(0).setDisplaySize(mapW, mapH).setDepth(-1);
-    
+
     this.tiles = Array(this.MAP_W * this.MAP_H).fill(null).map((_, i) => ({
       x: i % this.MAP_W, y: Math.floor(i / this.MAP_W), sprite: null, building: null, destroyed: false
     }));
@@ -53,7 +53,7 @@ export default class GameScene extends Phaser.Scene {
     this.gridGraphics.strokePath();
 
     this.buildPreview = this.add.rectangle(0,0,this.TILE_SIZE,this.TILE_SIZE,0x00e5ff,0.4).setOrigin(0).setVisible(false);
-    
+
     this.createBuildCostTooltip();
 
     const cam = this.cameras.main;
@@ -79,6 +79,12 @@ export default class GameScene extends Phaser.Scene {
 
     this.setupInputs(cam);
     this.setupEvents();
+
+    // Calculate initial net income before pause
+    this.calculateNetIncome();
+
+    // Pause and wait for preset selection
+    this.scene.pause();
     this.events.emit('state-updated', this.state);
   }
 
@@ -87,18 +93,17 @@ export default class GameScene extends Phaser.Scene {
       day: 1,
       geld: 1000, offshore: 0, minerals: 50, nahrung: 100, sauerstoff: 200,
       gesundheit: 100, zufriedenheit: 100, happiness: 100, angst: 0, fear: 0, wissen: 50, planet: 100,
-      
-      taxLevel: 1, // DEFAULT TAX LEVEL BINDING
-      efficiency: 1.0, 
+
+      taxLevel: 1,
+      efficiency: 1.0,
       efficiencyOverrideDays: 0,
-      
-      // Population & Lifecycle Engine
+
       popChildren: 0,
       popWorkers: 0,
       popEngineers: 10,
       popCap: 20,
-      agingCounter: 0, // Track days for aging events (every 5 days)
-      
+      agingCounter: 0,
+
       workersLocked: 0,
       constructionEngineersLocked: 0,
       dronesEngineersLocked: 0,
@@ -111,7 +116,9 @@ export default class GameScene extends Phaser.Scene {
       })),
       schoolEnrollments: [],
       academyEnrollments: [],
-      
+
+      netIncome: { food: 0, o2: 0 },
+
       techs: {}, factionLoyalty: { rust: 50, order: 50, guild: 50 }, gameEnded: false,
       childLaborDaysRemaining: 0,
       cooldowns: { propaganda: 0, inquisition: 0, social: 0, suppressRiots: 0, manipulation: 0, publicHealth: 0, childLabor: 0 }
@@ -134,6 +141,42 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     this.state.drones.active = Math.min(requiredSlots, this.state.drones.owned, this.state.drones.capacity);
+  }
+
+  calculateNetIncome() {
+    const E = this.state.efficiency;
+    const dailyConsumption = (this.state.popChildren * 1) + (this.state.popWorkers * 2) + (this.state.popEngineers * 3);
+
+    let foodProduction = 0;
+    let o2Production = 0;
+
+    const processedBuildings = new Set();
+    for (const t of this.tiles) {
+      if (!t.building || t.destroyed || processedBuildings.has(t.building)) continue;
+      if (t.building.daysRemaining > 0) continue;
+
+      const b = t.building;
+      const status = b.status || 'active';
+
+      if (status === 'active') {
+        if (b.key === 'tile_farm' && b.workers > 0) {
+          foodProduction += Math.floor(15 * E);
+        }
+        if (b.key === 'tile_o2' && b.workers > 0) {
+          o2Production += Math.floor(15 * E);
+        }
+        if (b.key === 'atmo_synthesizer') {
+          o2Production += Math.floor(50 * E);
+        }
+      }
+
+      processedBuildings.add(t.building);
+    }
+
+    this.state.netIncome = {
+      food: foodProduction - dailyConsumption,
+      o2: o2Production - dailyConsumption
+    };
   }
 
   syncSentimentAliases() {
@@ -198,6 +241,22 @@ export default class GameScene extends Phaser.Scene {
             qText = "<strong>Production Queue:</strong><br>" + this.state.droneQueue.map(q => `⚙️ ${q.qty} drones in ${q.days} days`).join('<br>');
           }
           this.events.emit('show-map-tooltip', pointer.x, pointer.y, qText);
+        } else if (tile && tile.building && tile.building.daysRemaining === 0) {
+          const b = tile.building;
+          const status = b.status || 'active';
+          if (status !== 'active' && ['tile_farm', 'tile_o2', 'tile_mine', 'tile_uni', 'atmo_synthesizer', 'planetary_cracker', 'planet_stabilizer'].includes(b.key)) {
+            let tooltipText = '';
+            if (status === 'abandoned') {
+              tooltipText = `<strong style="color:#ff4444;">🔴 ABANDONED</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Starvation/No O2'}<br>Solution: Buy emergency supplies`;
+            } else if (status === 'strike') {
+              tooltipText = `<strong style="color:#ff4444;">✊ STRIKE</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Happiness < 30%'}<br>Solution: Lower Taxes or Propaganda`;
+            } else if (status === 'damaged') {
+              tooltipText = `<strong style="color:#888844;">☢️ DAMAGED</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Planet Health < 40%'}<br>Solution: Build Planet Stabilizer`;
+            }
+            if (tooltipText) this.events.emit('show-map-tooltip', pointer.x, pointer.y, tooltipText);
+          } else {
+            this.events.emit('hide-map-tooltip');
+          }
         } else {
           this.events.emit('hide-map-tooltip');
         }
@@ -344,6 +403,14 @@ export default class GameScene extends Phaser.Scene {
 
     const spr = this.add.image(sprX, sprY, key).setDisplaySize(this.TILE_SIZE*(is2x2?2:1), this.TILE_SIZE*(is2x2?2:1));
     if(!instant) { spr.setTint(0x4466aa); spr.setAlpha(0.6); }
+    else {
+      spr.setInteractive();
+      spr.on('pointerover', () => {
+        if (bld.daysRemaining === 0 && (bld.key === 'tile_school' || bld.key === 'tile_uni' || bld.key === 'tile_dronehub')) {
+          // Handled by click events
+        }
+      });
+    }
     bld.sprite = spr;
 
     if (!instant) {
@@ -636,6 +703,72 @@ export default class GameScene extends Phaser.Scene {
     
     this.processEducationQueues();
 
+    // DETERMINISTIC BUILDING STATUS EVALUATION
+    const processedForStatus = new Set();
+    for (const t of this.tiles) {
+      if (!t.building || t.destroyed || processedForStatus.has(t.building)) continue;
+      if (t.building.daysRemaining > 0) continue;
+      processedForStatus.add(t.building);
+
+      const b = t.building;
+      const prevStatus = b.status || 'active';
+      let newStatus = 'active';
+
+      // DETERMINISTIC: ALL buildings fail if critical resources = 0
+      if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
+        newStatus = 'abandoned';
+        b.statusCause = this.state.nahrung <= 0 ? 'Starvation' : 'No O2';
+      }
+      // DETERMINISTIC: ALL buildings strike if happiness < 30
+      else if (this.state.zufriedenheit < 30) {
+        newStatus = 'strike';
+        b.statusCause = 'Happiness < 30%';
+      }
+      // DETERMINISTIC: ALL buildings damaged if planet < 40
+      else if (this.state.planet < 40) {
+        newStatus = 'damaged';
+        b.statusCause = 'Planet Health < 40%';
+      }
+
+      // INSTANT RECOVERY: Buildings recover immediately when conditions resolve
+      if (prevStatus === 'abandoned' && this.state.nahrung > 0 && this.state.sauerstoff > 0) {
+        newStatus = 'active';
+      }
+      if (prevStatus === 'strike' && this.state.zufriedenheit >= 40) {
+        newStatus = 'active';
+      }
+      if (prevStatus === 'damaged' && this.state.planet >= 50) {
+        newStatus = 'active';
+      }
+
+      // Apply status
+      b.status = newStatus;
+
+      // Visual feedback + Ensure interactivity
+      if (newStatus === 'abandoned') {
+        b.sprite.setTint(0x880000);
+      } else if (newStatus === 'strike') {
+        b.sprite.setTint(0xaa0000);
+      } else if (newStatus === 'damaged') {
+        b.sprite.setTint(0x334433);
+      } else {
+        b.sprite.clearTint();
+      }
+
+      // Ensure sprite remains interactive for tooltips
+      if (!b.sprite.input) {
+        b.sprite.setInteractive();
+      }
+
+      // Log status change
+      if (prevStatus !== newStatus && newStatus !== 'active') {
+        const labels = { abandoned: '🔴 ABANDONED', strike: '✊ STRIKE', damaged: '☢️ DAMAGED' };
+        this.events.emit('cosmic-event', `${labels[newStatus]}: ${b.key}`);
+      } else if (prevStatus !== newStatus && newStatus === 'active') {
+        this.events.emit('cosmic-event', `✅ Building recovered: ${b.key}`);
+      }
+    }
+
     // Happiness modifiers
     const taxImpact = 2 - (T * T);
     const knowCurse = -Math.floor(Math.min(this.state.wissen, 500) / 100) * (T + 1);
@@ -708,7 +841,7 @@ export default class GameScene extends Phaser.Scene {
     for (const t of this.tiles) {
       if (!t.building || t.destroyed || processedBuildings.has(t.building)) continue;
       processedBuildings.add(t.building);
-      
+
       const b = t.building;
       if (b.daysRemaining > 0) {
         b.daysRemaining--;
@@ -725,15 +858,17 @@ export default class GameScene extends Phaser.Scene {
       } else {
         if(b.key === 'tile_housing') { /* popCap already updated */ }
 
-        // Only add to resource buildings if has workers assigned
-        if(['tile_farm', 'tile_o2', 'tile_mine'].includes(b.key) && b.workers > 0) {
+        const status = b.status || 'active';
+
+        // Only add to resource buildings if has workers assigned AND is active
+        if(['tile_farm', 'tile_o2', 'tile_mine'].includes(b.key) && b.workers > 0 && status === 'active') {
           resourceBuildings.push({tile: t, bld: b});
         }
-        
-        if(b.key === 'tile_uni') this.state.wissen += Math.floor(5 * E);
-        if(b.key === 'planet_stabilizer') this.state.planet += Math.floor(2 * E);
-        if(b.key === 'atmo_synthesizer') this.state.sauerstoff += Math.floor(50 * E);
-        if(b.key === 'planetary_cracker') {
+
+        if(b.key === 'tile_uni' && status === 'active') this.state.wissen += Math.floor(5 * E);
+        if(b.key === 'planet_stabilizer' && status === 'active') this.state.planet += Math.floor(2 * E);
+        if(b.key === 'atmo_synthesizer' && status === 'active') this.state.sauerstoff += Math.floor(50 * E);
+        if(b.key === 'planetary_cracker' && status === 'active') {
           this.state.minerals += Math.floor(40 * E);
           this.state.planet -= 3;
         }
@@ -776,21 +911,25 @@ export default class GameScene extends Phaser.Scene {
     const produceCount = Math.min(this.state.drones.active, resourceBuildings.length);
     for(let i=0; i<produceCount; i++) {
       const target = resourceBuildings[i];
-      if(target.bld.key === 'tile_farm') this.state.nahrung += Math.floor(15 * E);
-      if(target.bld.key === 'tile_o2') this.state.sauerstoff += Math.floor(15 * E);
-      if(target.bld.key === 'tile_mine') {
-        this.state.minerals += Math.floor(10 * E);
-        this.state.planet -= 0.5;
+      const status = target.bld.status || 'active';
+      if (status === 'active') {
+        if(target.bld.key === 'tile_farm') this.state.nahrung += Math.floor(15 * E);
+        if(target.bld.key === 'tile_o2') this.state.sauerstoff += Math.floor(15 * E);
+        if(target.bld.key === 'tile_mine') {
+          this.state.minerals += Math.floor(10 * E);
+          this.state.planet -= 0.5;
+        }
+        this.animateDroneFlight(target.tile);
       }
-      this.animateDroneFlight(target.tile);
     }
-    
+
     this.state.planet = Phaser.Math.Clamp(this.state.planet, 0, 100);
 
     if (requiredSlots > this.state.drones.active) {
       this.events.emit('cosmic-event', `⚠️ Logistics Failure: ${requiredSlots - this.state.drones.active} drone slots unavailable!`);
     }
 
+    this.calculateNetIncome();
     this.animateCitizens(processedBuildings);
     this.checkEndings();
 
@@ -881,14 +1020,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   startWithPreset(presetName) {
-<<<<<<< Updated upstream
-=======
-    if (!this.state) {
-      console.error('State not initialized - create() may not have finished');
+    if (!this.stateInitialized || !this.state) {
+      console.error('State not ready');
       return;
     }
 
->>>>>>> Stashed changes
     if (presetName === 'wealthy') {
       this.state.geld = 5000;
       this.state.popWorkers = 15;
@@ -918,6 +1054,7 @@ export default class GameScene extends Phaser.Scene {
     }
     this.state.popCap = 20;
     this.syncSentimentAliases();
+    this.scene.resume();
     this.events.emit('state-updated', this.state);
   }
 
