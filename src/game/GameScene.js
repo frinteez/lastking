@@ -254,6 +254,9 @@ export default class GameScene extends Phaser.Scene {
               tooltipText = `<strong style="color:#888844;">☢️ DAMAGED</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Planet Health < 40%'}<br>Solution: Build Planet Stabilizer`;
             }
             if (tooltipText) this.events.emit('show-map-tooltip', pointer.x, pointer.y, tooltipText);
+          } else if (b.forcedLabor && ['tile_farm', 'tile_o2', 'tile_mine', 'tile_uni', 'atmo_synthesizer', 'planetary_cracker', 'planet_stabilizer'].includes(b.key)) {
+            const tooltipText = `<strong style="color:#ffaa00;">⚠️ FORCED LABOR</strong><br>Production: Active<br>Cause: Low Happiness, but High Fear keeps them working<br>Risk: Efficiency reduced if Fear drops`;
+            this.events.emit('show-map-tooltip', pointer.x, pointer.y, tooltipText);
           } else {
             this.events.emit('hide-map-tooltip');
           }
@@ -402,13 +405,31 @@ export default class GameScene extends Phaser.Scene {
     let sprY = ty * this.TILE_SIZE + (is2x2 ? this.TILE_SIZE : this.TILE_SIZE / 2);
 
     const spr = this.add.image(sprX, sprY, key).setDisplaySize(this.TILE_SIZE*(is2x2?2:1), this.TILE_SIZE*(is2x2?2:1));
+    spr.originalScaleX = spr.scaleX;
+    spr.originalScaleY = spr.scaleY;
+
     if(!instant) { spr.setTint(0x4466aa); spr.setAlpha(0.6); }
     else {
       spr.setInteractive();
       spr.on('pointerover', () => {
-        if (bld.daysRemaining === 0 && (bld.key === 'tile_school' || bld.key === 'tile_uni' || bld.key === 'tile_dronehub')) {
-          // Handled by click events
-        }
+        this.tweens.killTweensOf(spr);
+        this.tweens.add({
+          targets: spr,
+          scaleX: spr.originalScaleX * 1.05,
+          scaleY: spr.originalScaleY * 1.05,
+          duration: 200,
+          ease: 'Power1'
+        });
+      });
+      spr.on('pointerout', () => {
+        this.tweens.killTweensOf(spr);
+        this.tweens.add({
+          targets: spr,
+          scaleX: spr.originalScaleX,
+          scaleY: spr.originalScaleY,
+          duration: 200,
+          ease: 'Power1'
+        });
       });
     }
     bld.sprite = spr;
@@ -638,7 +659,6 @@ export default class GameScene extends Phaser.Scene {
   nextDay() {
     if(this.state.gameEnded) return;
     this.state.day++;
-    
     // Tax Implementation - if Tax > 2, Happiness -3 per day
     const T = Phaser.Math.Clamp(this.state.taxLevel, 0, 4);
     this.state.geld += (T * 30);
@@ -713,16 +733,27 @@ export default class GameScene extends Phaser.Scene {
       const b = t.building;
       const prevStatus = b.status || 'active';
       let newStatus = 'active';
+      let forcedLabor = false;
 
+      // INSTANT RECOVERY: Buildings recover immediately when conditions resolve
+      if (this.state.nahrung > 0 && this.state.sauerstoff > 0 && this.state.zufriedenheit >= 40 && this.state.planet >= 50) {
+        newStatus = 'active';
+      }
       // DETERMINISTIC: ALL buildings fail if critical resources = 0
-      if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
+      else if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
         newStatus = 'abandoned';
         b.statusCause = this.state.nahrung <= 0 ? 'Starvation' : 'No O2';
       }
-      // DETERMINISTIC: ALL buildings strike if happiness < 30
+      // STRIKE OR FORCED LABOR: happiness < 30
       else if (this.state.zufriedenheit < 30) {
-        newStatus = 'strike';
-        b.statusCause = 'Happiness < 30%';
+        if (this.state.angst >= 50) {
+          newStatus = 'active';
+          forcedLabor = true;
+          b.statusCause = 'Forced Labor - High Fear';
+        } else {
+          newStatus = 'strike';
+          b.statusCause = 'Happiness < 30%';
+        }
       }
       // DETERMINISTIC: ALL buildings damaged if planet < 40
       else if (this.state.planet < 40) {
@@ -730,19 +761,9 @@ export default class GameScene extends Phaser.Scene {
         b.statusCause = 'Planet Health < 40%';
       }
 
-      // INSTANT RECOVERY: Buildings recover immediately when conditions resolve
-      if (prevStatus === 'abandoned' && this.state.nahrung > 0 && this.state.sauerstoff > 0) {
-        newStatus = 'active';
-      }
-      if (prevStatus === 'strike' && this.state.zufriedenheit >= 40) {
-        newStatus = 'active';
-      }
-      if (prevStatus === 'damaged' && this.state.planet >= 50) {
-        newStatus = 'active';
-      }
-
       // Apply status
       b.status = newStatus;
+      b.forcedLabor = forcedLabor;
 
       // Visual feedback + Ensure interactivity
       if (newStatus === 'abandoned') {
@@ -761,10 +782,12 @@ export default class GameScene extends Phaser.Scene {
       }
 
       // Log status change
-      if (prevStatus !== newStatus && newStatus !== 'active') {
+      if (prevStatus !== newStatus && newStatus !== 'active' && !forcedLabor) {
         const labels = { abandoned: '🔴 ABANDONED', strike: '✊ STRIKE', damaged: '☢️ DAMAGED' };
         this.events.emit('cosmic-event', `${labels[newStatus]}: ${b.key}`);
-      } else if (prevStatus !== newStatus && newStatus === 'active') {
+      } else if (forcedLabor && prevStatus === 'strike') {
+        this.events.emit('cosmic-event', `⚠️ Forced Labor: ${b.key}`);
+      } else if (prevStatus !== newStatus && newStatus === 'active' && !forcedLabor) {
         this.events.emit('cosmic-event', `✅ Building recovered: ${b.key}`);
       }
     }
@@ -1008,14 +1031,14 @@ export default class GameScene extends Phaser.Scene {
   checkEndings() {
     const s = this.state;
     const totalPop = s.popChildren + s.popWorkers + s.popEngineers;
-    if (s.day >= 100 && s.zufriedenheit > 80 && s.planet > 80 && s.techs.planetStabilizer) {
-      this.triggerEnding('Ascension');
-    } else if (s.techs.arkBlueprint && s.geld >= 30000 && this.tiles.some(t => t.building && t.building.key === 'ark_ship')) {
-      this.triggerEnding('Escape');
-    } else if (totalPop <= 0 || s.planet <= 0) {
+    if (totalPop <= 0 || s.planet <= 0) {
       this.triggerEnding('Collapse');
     } else if (s.happiness <= 0 && s.fear < 40) {
       this.triggerEnding('Uprising');
+    } else if (s.day >= 100 && s.zufriedenheit > 80 && s.planet > 80 && s.techs.planetStabilizer) {
+      this.triggerEnding('Ascension');
+    } else if (s.techs.arkBlueprint && s.geld >= 30000 && this.tiles.some(t => t.building && t.building.key === 'ark_ship')) {
+      this.triggerEnding('Escape');
     }
   }
 

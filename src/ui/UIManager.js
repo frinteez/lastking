@@ -679,33 +679,6 @@ export default class UIManager {
     }
     const offer = parsedOffer;
 
-    if (currency === 'geld' && state.geld < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'minerals' && state.minerals < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'food' && state.nahrung < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'o2' && state.sauerstoff < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'citizens') {
-      const citizenPrice = citizenType === 'engineers' ? 100 : citizenType === 'workers' ? 50 : 25;
-      const requiredPeople = Math.ceil(offer / citizenPrice);
-      if ((citizenType === 'engineers' && state.popEngineers < requiredPeople)
-          || (citizenType === 'workers' && state.popWorkers < requiredPeople)
-          || (citizenType === 'children' && state.popChildren < requiredPeople)) {
-        this.log('❌ Not enough resources to make this offer');
-        return;
-      }
-    }
-
     const currencyRate = this.getCurrencyRate(currency, citizenType);
     const calculatedBasePrice = Math.max(1, Math.ceil((baseMoneyPerUnit * quantity) / currencyRate));
     const factionLoyalty = state.factionLoyalty ? (state.factionLoyalty[factionId] || 0) : 50;
@@ -1419,19 +1392,24 @@ export default class UIManager {
     const floatingText = document.createElement('div');
     floatingText.className = `floating-text ${value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral'}`;
 
-    // Add emoji based on resource type
-    const emojiMap = {
-      geld: value > 0 ? '💰' : '💸',
-      nahrung: value > 0 ? '🍎' : '🍂',
-      sauerstoff: value > 0 ? '💨' : '⛔',
-      minerals: value > 0 ? '⛏️' : '📦',
-      popChildren: value > 0 ? '👶' : '💀',
-      popWorkers: value > 0 ? '👷' : '💀',
-      popEngineers: value > 0 ? '👨‍🔬' : '💀'
+    const iconMap = {
+      geld: '/assets/icon_money.png',
+      nahrung: '/assets/icon_food.png',
+      sauerstoff: '/assets/icon_o2.png',
+      minerals: '/assets/icon_min.png',
+      popWorkers: '/assets/worker.png',
+      popEngineers: '/assets/engeneer.png'
     };
 
-    const emoji = emojiMap[resourceKey] || '';
-    floatingText.textContent = `${value > 0 ? '+' : ''}${value} ${emoji}`;
+    const icon = iconMap[resourceKey];
+    if (icon && resourceKey !== 'popChildren') {
+      floatingText.innerHTML = `${value > 0 ? '+' : ''}${value} <img src="${icon}" class="fct-icon">`;
+    } else if (resourceKey === 'popChildren') {
+      floatingText.textContent = `${value > 0 ? '+' : ''}${value} 👶`;
+    } else {
+      floatingText.textContent = `${value > 0 ? '+' : ''}${value}`;
+    }
+
     floatingText.style.left = `${rect.left + rect.width / 2}px`;
     floatingText.style.top = `${rect.top + rect.height / 2}px`;
 
