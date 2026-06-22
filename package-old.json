@@ -1,0 +1,22 @@
+{
+  "name": "lastking",
+  "version": "1.0.0",
+  "description": "Der letzte König: 2D web-based resource management strategy game",
+  "main": "index.html",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:education": "node scripts/test-education.js"
+  },
+  "keywords": ["phaser", "game", "vite"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "phaser": "^3.55.2"
+  },
+  "devDependencies": {
+    "vite": "^4.5.0"
+  }
+}
