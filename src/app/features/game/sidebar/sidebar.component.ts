@@ -28,22 +28,17 @@ interface BuildOption {
 
       <!-- Navigation Tabs -->
       <nav class="flex flex-col gap-2 text-sm">
-        <button class="text-left py-1 px-2 border hover:bg-sci-navy hover:text-sci-cyan transition-colors"
-                [ngClass]="activeBuild !== null ? 'bg-sci-navy border-sci-cyan text-sci-cyan shadow-neon-cyan' : 'border-gray-600 text-gray-400'"
-                (click)="cancelBuildMode()">
-          [1] INFRASTRUCTURE
-        </button>
         <button class="text-left py-1 px-2 border border-gray-600 text-gray-400 hover:bg-sci-navy hover:text-sci-cyan transition-colors"
                 (click)="openModal('ministries')">
-          [2] MINISTRIES
+          [1] MINISTRIES
         </button>
         <button class="text-left py-1 px-2 border border-gray-600 text-gray-400 hover:bg-sci-navy hover:text-sci-cyan transition-colors"
                 (click)="openModal('geopolitics')">
-          [3] GEOPOLITICS
+          [2] GEOPOLITICS
         </button>
         <button class="text-left py-1 px-2 border border-gray-600 text-gray-400 hover:bg-sci-navy hover:text-sci-cyan transition-colors"
-                (click)="openModal('academy')">
-          [4] ROYAL ACADEMY
+                (click)="openModal('tech')">
+          [3] ROYAL ACADEMY
         </button>
       </nav>
 
@@ -107,6 +102,25 @@ interface BuildOption {
             </button>
           </div>
         </div>
+
+        <!-- Category: Megastructures (2x2) -->
+        <div class="mb-6">
+          <h4 class="text-xs text-sci-violet mb-2 uppercase tracking-widest">Megastructures</h4>
+          <div class="flex flex-col gap-2">
+            <button *ngFor="let b of megastructures" 
+                    [disabled]="!hasTech(b.req)"
+                    (click)="enterBuildMode(b.id)"
+                    [ngClass]="{
+                      'border-sci-cyan text-sci-cyan hover:bg-sci-navy': hasTech(b.req),
+                      'border-gray-700 text-gray-600 cursor-not-allowed': !hasTech(b.req),
+                      'bg-sci-cyan text-sci-dark': activeBuild === b.id
+                    }"
+                    class="text-left py-2 px-3 border transition-colors duration-150 relative group">
+              {{ b.label }}
+              <span *ngIf="!hasTech(b.req)" class="absolute right-2 top-2 text-[10px] text-red-500">LOCKED</span>
+            </button>
+          </div>
+        </div>
       </div>
     </aside>
   `,
@@ -134,6 +148,13 @@ export class SidebarComponent implements OnInit {
   institutions: BuildOption[] = [
     { id: 'tile_school', label: 'School', req: 'none' },
     { id: 'tile_uni', label: 'Academy', req: 'basicSchooling' }
+  ];
+
+  megastructures: BuildOption[] = [
+    { id: 'atmo_synthesizer', label: 'Atmo-Synth', req: 'advO2' },
+    { id: 'planetary_cracker', label: 'Planetary Cracker', req: 'deepExcavation' },
+    { id: 'planet_stabilizer', label: 'Stabilizer', req: 'planetStabilizer' },
+    { id: 'ark_ship', label: 'Royal Ark', req: 'arkBlueprint' }
   ];
 
   constructor(private bridge: GameBridgeService, private modalService: ModalService) {}

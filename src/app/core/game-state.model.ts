@@ -11,10 +11,13 @@ export interface GameState {
   tag: number;
   fct: number;
   population: number;
+  workers: number;
   engineers: number;
   children: number;
   drones: number;
   efficiency: number;
   netIncome: number;
+  steuerStufe: number;
+  factions: { [key: string]: { loyalty: number } };
   techs?: Record<string, boolean>;
 }

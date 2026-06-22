@@ -53,6 +53,25 @@ export class GameBridgeService {
     // future integration
   }
 
+  public submitTrade(faction: string, qty: number, bluff: boolean) {
+    if (this.phaserScene && this.phaserScene.handleTrade) {
+      this.phaserScene.handleTrade(faction, qty, bluff);
+    }
+  }
+
+  public setTaxLevel(level: number) {
+    if (this.phaserScene) {
+      this.phaserScene.state.steuerStufe = level;
+      this.phaserScene.updateUI();
+    }
+  }
+
+  public researchTech(techId: string) {
+    if (this.phaserScene && this.phaserScene.researchTech) {
+      this.phaserScene.researchTech(techId);
+    }
+  }
+
   public startWithPreset(preset: string) {
     if (this.phaserScene && this.phaserScene.startWithPreset) {
       this.phaserScene.startWithPreset(preset);

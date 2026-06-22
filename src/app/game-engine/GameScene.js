@@ -55,13 +55,13 @@ export default class GameScene extends Phaser.Scene {
     this.add.image(mapW / 2, mapH / 2, 'bg_space').setOrigin(0.5).setScale(1.8).setDepth(-2);
     this.bgPlanet = this.add.image(0, 0, 'bg_planet').setOrigin(0).setDisplaySize(mapW, mapH).setDepth(-1);
 
-    this.tweens.add({
-      targets: this.bgPlanet,
-      angle: 360,
-      duration: 360000,
-      repeat: -1,
-      ease: 'Linear'
-    });
+    // this.tweens.add({
+    //   targets: this.bgPlanet,
+    //   angle: 360,
+    //   duration: 360000,
+    //   repeat: -1,
+    //   ease: 'Linear'
+    // });
 
     this.tiles = Array(this.MAP_W * this.MAP_H).fill(null).map((_, i) => ({
       x: i % this.MAP_W, y: Math.floor(i / this.MAP_W), sprite: null, building: null, destroyed: false
@@ -1195,5 +1195,72 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(3000, () => {
       this.events.emit('trigger-ending', normalizedType);
     });
+  }
+
+  researchTech(techId) {
+    let costG = 0, costW = 0, req = null, reqEng = 0;
+    // Basic mapping of costs
+    if (techId === 'hydroponics') { costG = 100; costW = 20; }
+    else if (techId === 'advO2') { costG = 150; costW = 30; req = 'hydroponics'; }
+    else if (techId === 'deepExcavation') { costG = 200; costW = 40; }
+    else if (techId === 'droneRouting') { costG = 200; costW = 50; req = 'deepExcavation'; reqEng = 10; }
+    else if (techId === 'atmoSynthesizer') { costG = 500; costW = 150; req = 'advO2'; reqEng = 15; }
+    else if (techId === 'planetaryCracker') { costG = 800; costW = 200; req = 'deepExcavation'; reqEng = 20; }
+    else if (techId === 'basicSchooling') { costG = 100; costW = 20; }
+    else if (techId === 'tradeSkills') { costG = 200; costW = 50; reqEng = 5; }
+    else if (techId === 'massMedia') { costG = 300; costW = 60; req = 'basicSchooling'; reqEng = 12; }
+    else if (techId === 'surveillance') { costG = 400; costW = 80; req = 'massMedia'; reqEng = 15; }
+    else if (techId === 'planetStabilizer') { costG = 1000; costW = 300; req = 'droneRouting'; reqEng = 20; }
+    else if (techId === 'arkBlueprint') { costG = 2000; costW = 500; req = 'surveillance'; reqEng = 25; }
+    else if (techId === 'royalGenome') { costG = 5000; costW = 1000; req = 'arkBlueprint'; reqEng = 30; }
+
+    if (this.state.techs[techId]) return this.events.emit('cosmic-event', 'Already researched.');
+    if (req && !this.state.techs[req]) return this.events.emit('cosmic-event', 'Missing prerequisite technology.');
+    if (this.state.popEngineers < reqEng) return this.events.emit('cosmic-event', `Requires ${reqEng} Engineers.`);
+    if (this.state.geld < costG || this.state.wissen < costW) return this.events.emit('cosmic-event', 'Insufficient Geld or Knowledge.');
+
+    this.state.geld -= costG;
+    this.state.wissen -= costW;
+    this.state.techs[techId] = true;
+    this.events.emit('cosmic-event', `Research Complete.`);
+    this.events.emit('state-updated', this.state);
+  }
+
+  handleTrade(faction, qtyStr, bluffActive) {
+    const qty = parseInt(qtyStr, 10);
+    const costTable = { rust: 200, order: 250, guild: 300 };
+    let basePrice = costTable[faction] || 200;
+
+    let loyalty = this.state.factionLoyalty[faction] || 0;
+    if (bluffActive) {
+      if (Math.random() < 0.5) {
+        loyalty += 20;
+        this.events.emit('cosmic-event', `Bluff successful! Loyalty +20.`);
+      } else {
+        loyalty -= 40;
+        this.events.emit('cosmic-event', `Bluff failed! Loyalty -40.`);
+        this.state.factionLoyalty[faction] = Math.max(-100, loyalty);
+        this.events.emit('state-updated', this.state);
+        return;
+      }
+    }
+    
+    let discount = Math.floor((Math.max(0, loyalty) / 100) * 40);
+    let pricePerUnit = Math.floor(basePrice * (1 - discount / 100));
+    let totalCost = pricePerUnit * qty;
+    let goodsAmount = qty * 1000;
+
+    // Faction goods type
+    let goodsType = faction === 'rust' ? 'minerals' : faction === 'order' ? 'sauerstoff' : 'nahrung';
+
+    if (this.state[goodsType] < goodsAmount) {
+      return this.events.emit('cosmic-event', `Insufficient ${goodsType} for trade.`);
+    }
+
+    this.state[goodsType] -= goodsAmount;
+    this.state.geld += totalCost;
+    this.state.factionLoyalty[faction] = Math.min(100, (this.state.factionLoyalty[faction] || 0) + (5 * qty));
+    this.events.emit('cosmic-event', `Trade successful. Earned ${totalCost} Geld.`);
+    this.events.emit('state-updated', this.state);
   }
 }

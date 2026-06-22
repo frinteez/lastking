@@ -1,0 +1,284 @@
+<div class="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto" *ngIf="activeModal">
+  
+  <!-- School Modal (Children -> Workers) -->
+  <div *ngIf="activeModal === 'school'" class="bg-sci-dark border-2 border-sci-cyan text-white p-8 max-w-xl w-full shadow-[0_0_20px_rgba(0,240,255,0.3)] relative font-mono">
+    <button class="absolute top-4 right-4 text-gray-500 hover:text-red-500 transition-colors font-bold" (click)="close()">[X] CLOSE</button>
+    <div class="flex items-center gap-4 mb-4">
+      <img src="/assets/child.png" class="h-16 w-16" alt="Child">
+      <div>
+        <h2 class="text-2xl text-sci-cyan tracking-widest uppercase">School</h2>
+        <p class="text-gray-400">Children to Workers</p>
+      </div>
+    </div>
+    <div class="mb-6">
+      <p class="text-sm mb-4 text-gray-300">Send idle children into School. They will become Workers after 5 days of training.</p>
+      <p class="text-sm mb-4 text-sci-cyan">Available Children: {{ state?.children }}</p>
+      <div class="flex items-center gap-4">
+        <input type="number" min="0" [max]="state?.children || 0" [(ngModel)]="schoolQty" class="bg-black border border-sci-cyan text-sci-cyan px-3 py-2 w-24 outline-none focus:shadow-neon-cyan">
+        <button class="bg-sci-cyan text-sci-dark hover:bg-white px-6 py-2 font-bold transition-colors" (click)="trainSchool()">ENROLL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Uni Modal (Workers -> Engineers) -->
+  <div *ngIf="activeModal === 'uni'" class="bg-sci-dark border-2 border-sci-cyan text-white p-8 max-w-xl w-full shadow-[0_0_20px_rgba(0,240,255,0.3)] relative font-mono">
+    <button class="absolute top-4 right-4 text-gray-500 hover:text-red-500 transition-colors font-bold" (click)="close()">[X] CLOSE</button>
+    <div class="flex items-center gap-4 mb-4">
+      <img src="/assets/worker.png" class="h-16 w-16" alt="Worker">
+      <div>
+        <h2 class="text-2xl text-sci-cyan tracking-widest uppercase">Academy</h2>
+        <p class="text-gray-400">Workers to Engineers</p>
+      </div>
+    </div>
+    <div class="mb-6">
+      <p class="text-sm mb-4 text-gray-300">Send idle workers to the Academy. After 7 days, they graduate into Engineers.</p>
+      <p class="text-sm mb-4 text-sci-cyan">Available Workers: {{ state?.workers }}</p>
+      <div class="flex items-center gap-4">
+        <input type="number" min="0" [max]="state?.workers || 0" [(ngModel)]="academyQty" class="bg-black border border-sci-cyan text-sci-cyan px-3 py-2 w-24 outline-none focus:shadow-neon-cyan">
+        <button class="bg-sci-cyan text-sci-dark hover:bg-white px-6 py-2 font-bold transition-colors" (click)="trainEngineers()">ENROLL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech Tree (Royal Academy) -->
+  <div *ngIf="activeModal === 'tech'" class="bg-sci-dark border-2 border-sci-cyan text-white p-8 max-w-5xl w-full h-[80vh] overflow-y-auto shadow-[0_0_20px_rgba(0,240,255,0.3)] relative font-mono custom-scrollbar">
+    <button class="absolute top-4 right-4 text-gray-500 hover:text-red-500 transition-colors font-bold z-10" (click)="close()">[X] CLOSE</button>
+    <div class="flex items-center gap-4 mb-8 border-b border-sci-cyan pb-4 sticky top-0 bg-sci-dark z-0">
+      <img src="/assets/icon_tech.png" class="h-12 w-12" alt="Tech">
+      <div>
+        <h2 class="text-3xl text-sci-cyan tracking-widest uppercase">Royal Academy</h2>
+        <p class="text-gray-400">Research & Technology</p>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div *ngFor="let t of techs" 
+           class="relative group border p-4 bg-sci-navy transition-all duration-300"
+           [ngClass]="hasTech(t.id) ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : canAffordTech(t) ? 'border-sci-cyan hover:shadow-neon-cyan' : 'border-gray-700 opacity-70'">
+        
+        <div class="flex items-center gap-3 mb-2">
+          <div class="h-10 w-10 flex items-center justify-center bg-black border border-gray-600 text-2xl overflow-hidden">
+             <img *ngIf="t.icon.includes('.png')" [src]="t.icon" class="h-full w-full object-cover">
+             <span *ngIf="!t.icon.includes('.png')">{{ t.icon }}</span>
+          </div>
+          <h3 class="font-bold text-lg" [ngClass]="hasTech(t.id) ? 'text-green-400' : 'text-white'">{{ t.title }}</h3>
+        </div>
+        
+        <div class="text-xs text-gray-400 mb-4 h-10">
+          Costs: <span class="text-green-400">{{ t.costG }}G</span> / <span class="text-yellow-400">{{ t.costW }}W</span><br>
+          <span *ngIf="t.reqEng > 0">Requires: {{ t.reqEng }} Engineers<br></span>
+          <span *ngIf="t.req" [ngClass]="hasTech(t.req) ? 'text-green-500' : 'text-red-500'">Prerequisite: {{ t.req }}</span>
+        </div>
+        
+        <button *ngIf="!hasTech(t.id)" 
+                class="w-full py-2 font-bold transition-colors"
+                [disabled]="!canAffordTech(t)"
+                [ngClass]="canAffordTech(t) ? 'bg-sci-cyan text-sci-dark hover:bg-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'"
+                (click)="researchTech(t.id)">
+          RESEARCH
+        </button>
+        <button *ngIf="hasTech(t.id)" class="w-full py-2 font-bold bg-green-900 text-green-300 border border-green-500 cursor-default">
+          RESEARCHED
+        </button>
+
+        <!-- Tooltip -->
+        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-black border border-sci-violet p-3 text-xs w-64 z-50 text-white shadow-[0_0_15px_rgba(138,43,226,0.5)]">
+          <strong class="text-sci-violet">{{ t.title }}</strong><br>
+          <p class="mt-1 text-gray-300">Unlocks new structures or decrees to aid the colony's survival.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drone Assembly Modal -->
+  <div *ngIf="activeModal === 'drone'" class="bg-sci-dark border-2 border-sci-cyan text-white p-8 max-w-xl w-full shadow-[0_0_20px_rgba(0,240,255,0.3)] relative font-mono">
+    <button class="absolute top-4 right-4 text-gray-500 hover:text-red-500 transition-colors font-bold" (click)="close()">[X] CLOSE</button>
+    <div class="flex items-center gap-4 mb-4">
+      <img src="/assets/drone.png" class="h-16 w-16" alt="Drone">
+      <div>
+        <h2 class="text-2xl text-sci-cyan tracking-widest uppercase">Drone Hub</h2>
+        <p class="text-gray-400">Automated Labor</p>
+      </div>
+    </div>
+    <div class="mb-6">
+      <p class="text-sm mb-4 text-gray-300">Cost per drone: 50 Minerals, 50 Geld. Requires 2 idle engineers.</p>
+      <p class="text-sm mb-4 text-sci-cyan">Available: {{ state?.mineralien }} Minerals, {{ state?.geld }} Geld, {{ state?.engineers }} Engineers.</p>
+      <div class="flex items-center gap-4">
+        <input type="number" min="0" max="5" [(ngModel)]="droneQty" class="bg-black border border-sci-cyan text-sci-cyan px-3 py-2 w-24 outline-none focus:shadow-neon-cyan">
+        <button class="bg-sci-cyan text-sci-dark hover:bg-white px-6 py-2 font-bold transition-colors" (click)="buildDrones()">ASSEMBLE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ministries Modal -->
+  <div *ngIf="activeModal === 'ministries'" class="bg-sci-dark border-2 border-sci-cyan text-white p-8 max-w-3xl w-full max-h-[80vh] overflow-y-auto custom-scrollbar relative font-mono shadow-[0_0_20px_rgba(0,240,255,0.3)]">
+    <button class="absolute top-4 right-4 text-gray-500 hover:text-red-500 transition-colors font-bold" (click)="close()">[X] CLOSE</button>
+    <h2 class="text-2xl text-sci-cyan border-b border-sci-cyan pb-2 mb-4 tracking-widest">MINISTRIES & DECREES</h2>
+    
+    <!-- Taxes -->
+    <div class="mb-8 bg-black border border-gray-700 p-4">
+      <h3 class="text-sci-violet font-bold mb-2">TAX RATE</h3>
+      <div class="flex items-center gap-4">
+        <input type="range" min="1" max="5" [value]="taxLevel" (change)="updateTax($event)" class="w-full cursor-pointer accent-sci-cyan">
+        <span class="text-xl font-bold w-8 text-center text-sci-cyan">{{ taxLevel }}</span>
+      </div>
+      <p class="text-xs text-gray-400 mt-2">Higher taxes increase Geld generation but drastically lower Happiness.</p>
+    </div>
+
+    <p class="text-gray-400 mb-6">Issue decrees to manage the population, at the cost of Fear or Geld.</p>
+    
+    <div class="grid grid-cols-2 gap-4">
+      <!-- Propaganda -->
+      <button class="bg-sci-navy border border-sci-cyan text-left p-4 hover:bg-sci-cyan hover:text-sci-dark transition-colors relative group"
+              (click)="executeDecree('propaganda')">
+        <div class="font-bold text-lg mb-1">State Propaganda</div>
+        <div class="text-xs opacity-80 mb-2 text-green-400">Cost: 300 Geld</div>
+        <div class="text-sm">Increases Happiness by 20%, lowers Fear.</div>
+        <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black border border-green-500 p-2 text-xs w-48 text-green-400 z-50">
+          Reminds the citizens of the great cause. -50 Knowledge.
+        </div>
+      </button>
+
+      <!-- Inquisition -->
+      <button class="bg-sci-navy border border-sci-cyan text-left p-4 hover:bg-sci-cyan hover:text-sci-dark transition-colors relative group"
+              [disabled]="!hasTech('surveillance')"
+              [ngClass]="{'opacity-50 cursor-not-allowed border-red-500': !hasTech('surveillance')}"
+              (click)="executeDecree('inquisition')">
+        <div class="font-bold text-lg mb-1">The Inquisition</div>
+        <div class="text-xs opacity-80 mb-2 text-red-400">Cost: 500 Geld</div>
+        <div class="text-sm">Extreme efficiency boost (+100%).</div>
+        <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black border border-red-500 p-2 text-xs w-48 text-red-400 z-50">
+          Root out dissidents. +40 Fear, -20 Health. Requires Surveillance.
+        </div>
+      </button>
+
+      <!-- Social -->
+      <button class="bg-sci-navy border border-sci-cyan text-left p-4 hover:bg-sci-cyan hover:text-sci-dark transition-colors relative group"
+              (click)="executeDecree('social')">
+        <div class="font-bold text-lg mb-1">Social Relief</div>
+        <div class="text-xs opacity-80 mb-2 text-green-400">Cost: 800 Geld</div>
+        <div class="text-sm">+30 Happiness, +10 Health.</div>
+        <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black border border-green-500 p-2 text-xs w-48 text-green-400 z-50">
+          Provide extra rations and medical aid to the populace.
+        </div>
+      </button>
+
+      <!-- Suppress -->
+      <button class="bg-sci-navy border border-sci-cyan text-left p-4 hover:bg-sci-cyan hover:text-sci-dark transition-colors relative group"
+              (click)="executeDecree('suppressRiots')">
+        <div class="font-bold text-lg mb-1">Suppress Riots</div>
+        <div class="text-xs opacity-80 mb-2 text-red-400">Cost: 200 Geld</div>
+        <div class="text-sm">+60 Fear, -10 Happiness.</div>
+        <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black border border-red-500 p-2 text-xs w-48 text-red-400 z-50">
+          Deploy enforcers to the streets. Breaks up gatherings.
+        </div>
+      </button>
+
+      <!-- Public Health -->
+      <button class="bg-sci-navy border border-sci-cyan text-left p-4 hover:bg-sci-cyan hover:text-sci-dark transition-colors relative group"
+              (click)="executeDecree('publicHealth')">
+        <div class="font-bold text-lg mb-1">Public Health</div>
+        <div class="text-xs opacity-80 mb-2 text-green-400">Cost: 300 Geld</div>
+        <div class="text-sm">+25 Health, +5 Happiness.</div>
+        <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black border border-green-500 p-2 text-xs w-48 text-green-400 z-50">
+          Distribute basic medical supplies to block sectors.
+        </div>
+      </button>
+
+      <!-- Child Labor -->
+      <button class="bg-sci-navy border border-sci-cyan text-left p-4 hover:bg-sci-cyan hover:text-sci-dark transition-colors relative group"
+              (click)="executeDecree('childLabor')">
+        <div class="font-bold text-lg mb-1">Child Labor</div>
+        <div class="text-xs opacity-80 mb-2 text-red-400">Cost: 100 Geld</div>
+        <div class="text-sm">Children work as Workers for 10 days.</div>
+        <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black border border-red-500 p-2 text-xs w-48 text-red-400 z-50">
+          -30 Happiness, +20 Fear. Desperate times.
+        </div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Geopolitics Modal -->
+  <div *ngIf="activeModal === 'geopolitics'" class="bg-sci-dark border-2 border-sci-cyan text-white p-8 max-w-4xl w-full shadow-[0_0_20px_rgba(0,240,255,0.3)] relative font-mono">
+    <button class="absolute top-4 right-4 text-gray-500 hover:text-red-500 transition-colors font-bold z-10" (click)="close()">[X] CLOSE</button>
+    <h2 class="text-2xl text-sci-cyan border-b border-sci-cyan pb-2 mb-4 tracking-widest">GEOPOLITICS</h2>
+    
+    <div class="flex gap-6 h-[400px]">
+      <!-- Faction List -->
+      <div class="w-1/3 flex flex-col gap-4 border-r border-gray-700 pr-4 overflow-y-auto">
+        <button *ngFor="let f of ['rust', 'order', 'guild']" 
+                class="bg-black border p-2 flex flex-col items-center gap-2 transition-colors relative group"
+                [ngClass]="activeFaction === f ? 'border-sci-cyan bg-sci-navy' : 'border-gray-600 hover:border-gray-400'"
+                (click)="setFaction($any(f))">
+          <img [src]="factions[f].img" class="h-16 w-16 object-cover border border-gray-700" alt="Avatar">
+          <span class="font-bold text-sm text-center" [style.color]="factions[f].color">{{ factions[f].name }}</span>
+          
+          <div class="absolute left-full top-0 ml-2 hidden group-hover:block bg-black border border-gray-500 p-2 text-xs w-48 z-50 text-white shadow-[0_0_10px_rgba(255,255,255,0.2)]">
+            <strong>Loyalty: {{ state?.factions?.[f]?.loyalty || 0 }}%</strong><br>
+            <span class="text-gray-400">{{ factions[f].desc }}</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Active Faction Details & Trade -->
+      <div class="w-2/3 flex flex-col">
+        <div class="flex items-center gap-4 mb-4">
+          <img [src]="factions[activeFaction].img" class="h-24 w-24 border-2" [style.borderColor]="factions[activeFaction].color" alt="Avatar">
+          <div>
+            <h3 class="text-2xl font-bold" [style.color]="factions[activeFaction].color">{{ factions[activeFaction].name }}</h3>
+            <p class="text-sm text-gray-400">{{ factions[activeFaction].desc }}</p>
+            <p class="mt-2 text-sci-cyan">Current Loyalty: <strong>{{ getFactionLoyalty() }}%</strong></p>
+          </div>
+        </div>
+
+        <div class="bg-black border border-gray-700 p-4 mt-auto">
+          <h4 class="text-sci-violet font-bold mb-2">TRADE NEGOTIATION</h4>
+          <p class="text-sm mb-4 text-gray-300">Offer resources (Minerals, Food, or O2 based on faction preference) in exchange for Loyalty and Geld.</p>
+          
+          <div class="flex items-center gap-4 mb-4">
+            <span class="text-sm">Quantity (x1000 res):</span>
+            <input type="number" min="1" max="10" [(ngModel)]="tradeQty" class="bg-black border border-sci-cyan text-sci-cyan px-2 py-1 w-20 outline-none">
+          </div>
+          
+          <div class="flex items-center gap-4 mb-4">
+             <label class="flex items-center gap-2 cursor-pointer group relative">
+               <input type="checkbox" [(ngModel)]="bluffActive" class="accent-sci-violet">
+               <span class="text-sm text-sci-violet">Offshore Bluff</span>
+               <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black border border-sci-violet p-2 text-xs w-64 z-50 text-white">
+                 Attempt to bluff the faction into giving a better deal. 50% chance of success, 50% chance to lose massive Loyalty!
+               </div>
+             </label>
+          </div>
+
+          <div class="flex justify-between items-end border-t border-gray-700 pt-4">
+            <div>
+              <div class="text-xs text-gray-400">Discount: <span class="text-green-400">{{ getTradeDiscount() }}%</span></div>
+              <div class="text-sm">Price per unit: <span class="text-green-400">{{ getTradePrice() }} Geld</span></div>
+              <div class="text-lg font-bold mt-1">Total Cost: <span class="text-green-400">{{ getTradeTotal() }} Geld</span></div>
+            </div>
+            <button class="bg-sci-cyan text-sci-dark hover:bg-white px-6 py-2 font-bold transition-colors shadow-neon-cyan" (click)="submitTrade()">
+              SUBMIT OFFER
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Game Modal (Cinematic) -->
+  <div *ngIf="activeModal === 'endgame'" 
+       class="border-4 border-red-600 text-white p-12 max-w-4xl w-full shadow-[0_0_50px_rgba(255,0,0,0.5)] relative font-mono text-center flex flex-col items-center justify-center bg-cover bg-center h-[600px]"
+       [style.backgroundImage]="getEndgameBg()">
+    <div class="absolute inset-0 bg-black/70 z-0"></div>
+    <div class="z-10 relative w-full">
+      <h1 class="text-5xl text-red-500 mb-8 font-bold tracking-widest uppercase drop-shadow-[0_0_10px_#ff0000]">{{ getEndgameTitle() }}</h1>
+      <div class="text-xl text-white mb-12 min-h-[100px] flex items-center justify-center whitespace-pre-wrap leading-relaxed drop-shadow-md">
+        {{ typewriterText }}
+      </div>
+      <button *ngIf="typewriterText === endingText" class="bg-red-600 text-white hover:bg-white hover:text-red-600 px-8 py-3 font-bold text-xl transition-colors shadow-neon-red animate-pulse" (click)="reloadGame()">
+        RESTART SYSTEM
+      </button>
+    </div>
+  </div>
+
+</div>

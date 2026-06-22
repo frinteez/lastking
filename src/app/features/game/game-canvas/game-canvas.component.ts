@@ -62,27 +62,34 @@ export class GameCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
         geld: s.geld,
         nahrung: s.nahrung,
         sauerstoff: s.sauerstoff,
-        mineralien: s.mineralien,
+        mineralien: s.minerals,
         gesundheit: s.gesundheit,
         wissen: s.wissen,
         zufriedenheit: s.zufriedenheit,
         angst: s.angst,
-        planetZustand: s.planetZustand,
-        tag: s.tag,
-        fct: s.fct,
+        planetZustand: s.planet,
+        tag: s.day,
+        fct: 0,
         population: totalPop,
+        workers: popWorkers,
         engineers: popEngineers,
         children: popChildren,
         drones: popDrones,
         efficiency: eff,
         netIncome: scene.getNetIncome ? scene.getNetIncome() : 0,
+        steuerStufe: s.steuerStufe || 1,
+        factions: {
+          rust: { loyalty: s.factionLoyalty?.rust || 0 },
+          order: { loyalty: s.factionLoyalty?.order || 0 },
+          guild: { loyalty: s.factionLoyalty?.guild || 0 }
+        },
         techs: s.techs || {}
       });
     }, 100);
 
     // Bind Modals to Phaser Events
-    scene.events.on('open-education-modal', () => {
-      this.modalService.open('academy');
+    scene.events.on('open-education-modal', (type: string) => {
+      this.modalService.open(type === 'academy' ? 'uni' : 'school');
     });
 
     scene.events.on('open-drone-modal', () => {
