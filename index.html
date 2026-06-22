@@ -69,6 +69,13 @@
                 <h3>Citizen Upgrades</h3>
                 <p>Build <strong>Schools</strong> to upgrade Children into Workers (5 days). Build <strong>Academies</strong> to upgrade Workers into Engineers (7 days). Click on Schools/Academies to enroll citizens.</p>
               </div>
+              <div class="howtoplay-section">
+                <h3>Efficiency & Morale</h3>
+                <p><strong>Global Efficiency = (Happiness × 0.7 + Fear × 0.3) / 100</strong></p>
+                <p>Efficiency multiplies ALL production (Food, O2, Minerals, Knowledge).</p>
+                <p><strong>Example:</strong> 50% Happiness + 50% Fear = 50% efficiency → Farm produces 7.5/day instead of 15/day.</p>
+                <p><strong>Warning:</strong> Pure tyranny (0% Happiness, 100% Fear) = only 30% efficiency. Balance is key.</p>
+              </div>
             </div>
           </div>
           <div id="lore-tab" class="start-tab-pane">
@@ -82,6 +89,8 @@
               <p><strong>Collapse</strong>: Population reaches 0 or Planet Health reaches 0%.</p>
               <p><strong>Uprising</strong>: Happiness reaches 0% while Fear remains below 40%. The people overthrow you.</p>
               <p><strong>Extinction</strong>: All citizens perish from starvation or environmental collapse.</p>
+              <h3>The Efficiency Doctrine</h3>
+              <p>Fear keeps them working. Happiness keeps them productive. A tyrant who rules only through terror will watch their factories grind to a halt as exhausted workers sabotage production. A leader who relies only on goodwill risks riots when resources run dry. The last king must walk the razor's edge.</p>
             </div>
           </div>
         </div>
@@ -90,6 +99,9 @@
 
     <!-- Phaser Canvas Layer -->
     <div id="game-container"></div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- UI Overlay Layer -->
     <div id="ui-layer" aria-live="polite">
@@ -157,10 +169,7 @@
           </div>
         </div>
 
-        <aside class="log-panel">
-          <div class="log-header">System Log</div>
-          <div class="log-body" id="log-body"></div>
-        </aside>
+        <!-- Removed System Log - replaced with floating text system -->
       </aside>
     </div>
     
@@ -379,6 +388,18 @@
             <span class="decree-cost-value">100</span>
           </div>
         </div>
+
+        <div class="decree-card decree-martial-law" data-decree="martialLaw" data-req="none">
+          <div class="decree-info">
+            <div class="decree-name">Martial Law</div>
+            <div class="decree-effects">+40 Fear, -20 Happiness, Prevents riots for 5 days</div>
+          </div>
+          <div class="decree-cost-pill">
+            <img src="/assets/icon_money.png" alt="Geld">
+            <span class="decree-cost-value">500</span>
+          </div>
+        </div>
+
       </div>
     </div>
 

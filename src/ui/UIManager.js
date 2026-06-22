@@ -150,19 +150,19 @@ export default class UIManager {
     this.el = {
       topbarContent: document.getElementById('topbar-content'),
       btnNextDay: document.getElementById('btn-next-day'),
-      log: document.getElementById('log-body'),
+      toastContainer: document.getElementById('toast-container'),
       buildBtns: Array.from(document.querySelectorAll('.build-option')),
       modals: Array.from(document.querySelectorAll('.fullscreen-modal')),
       modalTriggers: Array.from(document.querySelectorAll('.trigger-modal')),
       closeBtns: Array.from(document.querySelectorAll('.modal-close-btn')),
       techNodes: Array.from(document.querySelectorAll('.tech-node')),
       decreeCards: Array.from(document.querySelectorAll('.decree-card')),
-      
+
       startMenu: document.getElementById('start-menu'),
       startTabBtns: Array.from(document.querySelectorAll('.start-tab-btn')),
       presetBtns: Array.from(document.querySelectorAll('.preset-btn')),
       restartBtn: document.getElementById('restart-btn'),
-      
+
       // Tax System
       taxSlider: document.getElementById('tax-slider'),
       taxDisplay: document.getElementById('tax-display'),
@@ -224,9 +224,13 @@ export default class UIManager {
         summaryDiscount: document.getElementById(`summary-discount-${faction}`),
         summaryTotal: document.getElementById(`summary-total-${faction}`),
         dialogue: document.getElementById(`dialogue-${faction}`),
+        acceptanceBar: document.getElementById(`acceptance-bar-${faction}`),
         selectedResource: null
       };
     });
+
+    // Track previous state for floating text
+    this.prevState = {};
   }
 
   attachEvents() {
@@ -411,6 +415,11 @@ export default class UIManager {
         const resourceType = card.dataset.resource;
         this.showTradeWindow(factionId, resourceType);
       });
+
+      // Add hover tooltips for geopolitics items
+      card.addEventListener('mouseenter', (e) => this.showGeopoliticsItemTooltip(card, e));
+      card.addEventListener('mousemove', (e) => this.showGeopoliticsItemTooltip(card, e));
+      card.addEventListener('mouseleave', () => this.hideAnyTooltip());
     });
 
     // Trade Window Controls
@@ -600,17 +609,27 @@ export default class UIManager {
 
     tw.summaryQty.textContent = String(qty);
     tw.summaryBase.innerHTML = `${calculatedBasePrice} <img src="${this.currencyCatalog[currency]?.icon || '/assets/icon_money.png'}" class="inline-icon" alt="${currency}">`;
-    if (!tw.offerInput.value || Number.isNaN(parseInt(tw.offerInput.value, 10))) {
-      tw.offerInput.value = String(calculatedBasePrice);
+
+    const offer = calculatedBasePrice;
+    tw.offerInput.value = String(offer);
+
+    const factionLoyalty = state.factionLoyalty ? (state.factionLoyalty[factionId] || 0) : 50;
+    const maxDiscount = Math.max(0, Math.min(0.4, factionLoyalty / 250));
+    const requiredOffer = Math.max(1, Math.floor(calculatedBasePrice * (1 - maxDiscount)));
+
+    const acceptancePercent = Math.min(100, (offer / requiredOffer) * 100);
+    if (tw.acceptanceBar) {
+      tw.acceptanceBar.style.width = `${acceptancePercent}%`;
     }
 
-    const offer = Math.max(0, parseInt(tw.offerInput.value) || calculatedBasePrice);
     const ratio = calculatedBasePrice > 0 ? offer / calculatedBasePrice : 1;
     tw.summaryDiscount.textContent = ratio.toFixed(2);
     tw.summaryTotal.innerHTML = `${offer} <img src="${this.currencyCatalog[currency]?.icon || '/assets/icon_money.png'}" class="inline-icon" alt="${currency}">`;
 
     const infoEl = tw.infoEl || tw.window.querySelector('.trade-info');
     if (infoEl) {
+      const resourceType = tw.selectedResource;
+      const resource = this.tradeCatalog[resourceType] || this.tradeCatalog.minerals;
       const itemHtml = `<img src="${resource.icon}" class="inline-icon" alt="${resource.label}">`;
       let priceInfo = '';
       if (mode === 'buy') {
@@ -668,33 +687,6 @@ export default class UIManager {
       return;
     }
     const offer = parsedOffer;
-
-    if (currency === 'geld' && state.geld < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'minerals' && state.minerals < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'food' && state.nahrung < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'o2' && state.sauerstoff < offer) {
-      this.log('❌ Not enough resources to make this offer');
-      return;
-    }
-    if (currency === 'citizens') {
-      const citizenPrice = citizenType === 'engineers' ? 100 : citizenType === 'workers' ? 50 : 25;
-      const requiredPeople = Math.ceil(offer / citizenPrice);
-      if ((citizenType === 'engineers' && state.popEngineers < requiredPeople)
-          || (citizenType === 'workers' && state.popWorkers < requiredPeople)
-          || (citizenType === 'children' && state.popChildren < requiredPeople)) {
-        this.log('❌ Not enough resources to make this offer');
-        return;
-      }
-    }
 
     const currencyRate = this.getCurrencyRate(currency, citizenType);
     const calculatedBasePrice = Math.max(1, Math.ceil((baseMoneyPerUnit * quantity) / currencyRate));
@@ -800,6 +792,43 @@ export default class UIManager {
       }, 2000);
     }, 40);
     this.typingTimers[factionId] = this.typewriterTimer;
+  }
+
+  showGeopoliticsItemTooltip(card, e) {
+    if (!this.el.tt) return;
+
+    const resourceType = card.dataset.resource;
+    const resource = this.tradeCatalog[resourceType];
+    if (!resource) return;
+
+    let effectText = '';
+
+    if (resourceType === 'artifacts') {
+      effectText = `Effect: Grants +${resource.knowledgeGrant || 100} Knowledge per unit`;
+    } else if (resourceType === 'technology') {
+      effectText = 'Effect: Unlocks 1 random locked technology';
+    } else if (resourceType === 'health' || resourceType === 'medicine') {
+      effectText = 'Effect: +1 Health per unit (max 100)';
+    } else if (resourceType === 'knowledge') {
+      effectText = 'Effect: +1 Knowledge per unit for research';
+    } else if (resourceType === 'minerals') {
+      effectText = 'Effect: +1 Minerals per unit for construction';
+    } else if (resourceType === 'food') {
+      effectText = 'Effect: +1 Food per unit (population sustenance)';
+    } else if (resourceType === 'o2') {
+      effectText = 'Effect: +1 O2 per unit (population breathing)';
+    } else {
+      effectText = 'Trade resource';
+    }
+
+    this.el.ttTitle.textContent = resource.label;
+    this.el.ttLore.textContent = '';
+    this.el.ttCosts.innerHTML = `Buy Price: ${resource.buyGeld || 'N/A'} <img src="/assets/icon_money.png" class="inline-icon" alt="Money">`;
+    this.el.ttEffects.textContent = effectText;
+    this.el.tt.style.display = 'block';
+    this.el.tt.style.left = `${e.pageX + 15}px`;
+    this.el.tt.style.top = `${e.pageY + 15}px`;
+    this.el.tt.classList.remove('hidden');
   }
 
   hideAnyTooltip() {
@@ -1011,9 +1040,27 @@ export default class UIManager {
     } else if (classList.includes('knowledge')) {
       tooltipHTML = `<strong>Knowledge</strong><div>Used for tech research</div>`;
     } else if (classList.includes('happiness')) {
-      tooltipHTML = `<strong>Happiness</strong><div>Directly boosts colony stability and productivity</div>`;
+      const eff = this.scene?.state?.efficiency || 0;
+      tooltipHTML = `
+        <strong>Happiness</strong>
+        <div>Boosts colony stability and productivity</div>
+        <div style="margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;">
+          <strong style="color:var(--accent-cyan);">Global Efficiency: ${Math.floor(eff * 100)}%</strong><br>
+          <span style="font-size:10px;">Formula: (Happiness × 0.7 + Fear × 0.3) / 100</span><br>
+          <span style="font-size:10px;">Efficiency multiplies ALL resource production.</span>
+        </div>
+      `;
     } else if (classList.includes('fear')) {
-      tooltipHTML = `<strong>Fear</strong><div>Raises control but can trigger unrest at extremes</div>`;
+      const eff = this.scene?.state?.efficiency || 0;
+      tooltipHTML = `
+        <strong>Fear</strong>
+        <div>Tyranny prevents strikes, but exhausted workers produce less</div>
+        <div style="margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;">
+          <strong style="color:var(--accent-cyan);">Global Efficiency: ${Math.floor(eff * 100)}%</strong><br>
+          <span style="font-size:10px;">High Fear (100) + Low Happiness (0) = 30% efficiency</span><br>
+          <span style="font-size:10px;">Balanced: Happiness=70, Fear=30 → 58% efficiency</span>
+        </div>
+      `;
     } else if (classList.includes('planet')) {
       tooltipHTML = `<strong>Planet Health</strong><div>Environmental collapse begins below 50%</div>`;
     } else if (classList.includes('day')) {
@@ -1193,59 +1240,78 @@ export default class UIManager {
   }
 
   updateUI(s) {
-    if (!s) return; 
+    if (!s) return;
 
-    // TOP BAR: Resource Cells Design (Clean, single border)
+    // Initialize prevState on first run
+    if (!this.prevState.geld) {
+      this.prevState = {
+        geld: s.geld,
+        nahrung: s.nahrung,
+        sauerstoff: s.sauerstoff,
+        minerals: s.minerals,
+        popChildren: s.popChildren,
+        popWorkers: s.popWorkers,
+        popEngineers: s.popEngineers
+      };
+    }
+
+    // TOP BAR: Resource Cells Design (2 rows)
     const totalPop = getTotalPopulation(s);
     const resourceCells = `
-      <div class="resource-cell money">
-        <img src="/assets/icon_money.png" alt="Money" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.geld}</span>
+      <div class="resource-row">
+        <div class="resource-cell money">
+          <img src="/assets/icon_money.png" alt="Money" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.geld}</span>
+        </div>
+        <div class="resource-cell population">
+          <img src="/assets/icon_pop.png" alt="Pop" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${totalPop}/${s.popCap}</span>
+        </div>
+        <div class="resource-cell drones">
+          <span style="font-size: 12px;"><img src="/assets/icon_drone.png" alt="Drones" class="res-icon" style="display:inline; height:16px;"></span>
+          <span class="resource-value">${s.drones.owned}/${s.drones.capacity}</span>
+          ${s.dronesEngineersLocked ? `<span class="resource-locked">🔒${s.dronesEngineersLocked}</span>` : ''}
+        </div>
+        <div class="resource-cell food">
+          <img src="/assets/icon_food.png" alt="Food" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.nahrung}</span>
+          ${this.renderNetIncome(s.netIncome?.food || 0)}
+        </div>
+        <div class="resource-cell o2">
+          <img src="/assets/icon_o2.png" alt="O2" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.sauerstoff}</span>
+          ${this.renderNetIncome(s.netIncome?.o2 || 0)}
+        </div>
+        <div class="resource-cell minerals">
+          <img src="/assets/icon_min.png" alt="Minerals" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${s.minerals}</span>
+        </div>
       </div>
-      <div class="resource-cell population">
-        <img src="/assets/icon_pop.png" alt="Pop" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${totalPop}/${s.popCap}</span>
-      </div>
-      <div class="resource-cell drones">
-        <span style="font-size: 12px;"><img src="/assets/icon_drone.png" alt="Drones" class="res-icon" style="display:inline; height:16px;"></span>
-        <span class="resource-value">${s.drones.owned}/${s.drones.capacity}</span>
-        ${s.dronesEngineersLocked ? `<span class="resource-locked">🔒${s.dronesEngineersLocked}</span>` : ''}
-      </div>
-      <div class="resource-cell food">
-        <img src="/assets/icon_food.png" alt="Food" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.nahrung}</span>
-      </div>
-      <div class="resource-cell o2">
-        <img src="/assets/icon_o2.png" alt="O2" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.sauerstoff}</span>
-      </div>
-      <div class="resource-cell minerals">
-        <img src="/assets/icon_min.png" alt="Minerals" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${s.minerals}</span>
-      </div>
-      <div class="resource-cell health">
-        <img src="/assets/icon_health.png" alt="Health" class="res-icon">
-        <span class="resource-value">${Math.floor(s.gesundheit)}</span>
-      </div>
-      <div class="resource-cell knowledge">
-        <img src="/assets/icon_knowledge.png" alt="Knowledge" class="res-icon">
-        <span class="resource-value">${s.wissen}</span>
-      </div>
-      <div class="resource-cell happiness">
-        <img src="/assets/icon_happiness.png" alt="Happiness" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${Math.floor(s.zufriedenheit)}</span>
-      </div>
-      <div class="resource-cell fear">
-        <img src="/assets/fear.png" alt="Fear" class="res-icon">
-        <span class="resource-value">${s.angst}</span>
-      </div>
-      <div class="resource-cell planet">
-        <img src="/assets/icon_planet.png" alt="Planet" class="res-icon" onerror="this.style.display='none'">
-        <span class="resource-value">${Math.floor(s.planet)}%</span>
-      </div>
-      <div class="resource-cell day">
-        <span style="font-size: 12px;"><img src="/assets/icon_clock.png" alt="Day" class="res-icon" style="display:inline; height:16px;"></span>
-        <span class="resource-value">Day ${s.day}</span>
+      <div class="resource-row">
+        <div class="resource-cell health">
+          <img src="/assets/icon_health.png" alt="Health" class="res-icon">
+          <span class="resource-value">${Math.floor(s.gesundheit)}</span>
+        </div>
+        <div class="resource-cell knowledge">
+          <img src="/assets/icon_knowledge.png" alt="Knowledge" class="res-icon">
+          <span class="resource-value">${s.wissen}</span>
+        </div>
+        <div class="resource-cell happiness">
+          <img src="/assets/icon_happiness.png" alt="Happiness" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${Math.floor(s.zufriedenheit)}</span>
+        </div>
+        <div class="resource-cell fear">
+          <img src="/assets/fear.png" alt="Fear" class="res-icon">
+          <span class="resource-value">${s.angst}</span>
+        </div>
+        <div class="resource-cell planet">
+          <img src="/assets/icon_planet.png" alt="Planet" class="res-icon" onerror="this.style.display='none'">
+          <span class="resource-value">${Math.floor(s.planet)}%</span>
+        </div>
+        <div class="resource-cell day">
+          <span style="font-size: 12px;"><img src="/assets/icon_clock.png" alt="Day" class="res-icon" style="display:inline; height:16px;"></span>
+          <span class="resource-value">Day ${s.day}</span>
+        </div>
       </div>
     `;
     
@@ -1253,6 +1319,49 @@ export default class UIManager {
       this.el.topbarContent.innerHTML = resourceCells;
       this.bindResourceCellTooltips();
     }
+
+    // Detect resource/population changes for floating text
+    const changes = {
+      geld: s.geld - this.prevState.geld,
+      nahrung: s.nahrung - this.prevState.nahrung,
+      sauerstoff: s.sauerstoff - this.prevState.sauerstoff,
+      minerals: s.minerals - this.prevState.minerals,
+      popChildren: s.popChildren - this.prevState.popChildren,
+      popWorkers: s.popWorkers - this.prevState.popWorkers,
+      popEngineers: s.popEngineers - this.prevState.popEngineers
+    };
+
+    // Spawn floating text for significant changes
+    if (this.el.topbarContent) {
+      Object.keys(changes).forEach(key => {
+        const change = changes[key];
+        if (change !== 0 && (Math.abs(change) >= 1 || key.startsWith('pop'))) {
+          const cellClass = key === 'geld' ? 'money' :
+                           key === 'nahrung' ? 'food' :
+                           key === 'sauerstoff' ? 'o2' :
+                           key === 'minerals' ? 'minerals' :
+                           key === 'popChildren' || key === 'popWorkers' || key === 'popEngineers' ? 'population' : null;
+          if (cellClass) {
+            const cell = this.el.topbarContent.querySelector(`.resource-cell.${cellClass}`);
+            if (cell) this.spawnFloatingText(change, cell, key);
+          }
+        }
+      });
+    }
+
+    // Store current state for next comparison
+    this.prevState = {
+      geld: s.geld,
+      nahrung: s.nahrung,
+      sauerstoff: s.sauerstoff,
+      minerals: s.minerals,
+      popChildren: s.popChildren,
+      popWorkers: s.popWorkers,
+      popEngineers: s.popEngineers
+    };
+
+    // Apply critical resource highlighting
+    this.updateCriticalResourceHighlight(s);
 
     // Build Buttons: Tech Lock
     document.querySelectorAll('.build-option, .decree-card').forEach(btn => {
@@ -1284,6 +1393,18 @@ export default class UIManager {
     this.updateEducationUI(s);
   }
 
+  renderNetIncome(netIncome) {
+    const val = Math.floor(netIncome);
+    const bgColor = val < 0 ? 'rgba(255, 68, 68, 0.2)' : 'transparent';
+    if (val > 0) {
+      return `<span style="color:#44ff44; font-size:12px; margin-left:4px; padding:2px 4px; border-radius:3px; background:${bgColor};">(+${val})</span>`;
+    } else if (val < 0) {
+      return `<span style="color:#ff4444; font-size:12px; margin-left:4px; padding:2px 4px; border-radius:3px; background:${bgColor};">(${val})</span>`;
+    } else {
+      return `<span style="color:#888888; font-size:12px; margin-left:4px; padding:2px 4px; border-radius:3px; background:${bgColor};">(0)</span>`;
+    }
+  }
+
   bindResourceCellTooltips() {
     if (!this.el.topbarContent) return;
     const cells = this.el.topbarContent.querySelectorAll('.resource-cell');
@@ -1296,11 +1417,97 @@ export default class UIManager {
     });
   }
 
+  spawnFloatingText(value, cellElement, resourceKey) {
+    if (!cellElement || value === 0) return;
+
+    const rect = cellElement.getBoundingClientRect();
+    const floatingText = document.createElement('div');
+    floatingText.className = `floating-text ${value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral'}`;
+
+    const iconMap = {
+      geld: '/assets/icon_money.png',
+      nahrung: '/assets/icon_food.png',
+      sauerstoff: '/assets/icon_o2.png',
+      minerals: '/assets/icon_min.png',
+      popWorkers: '/assets/worker.png',
+      popEngineers: '/assets/engeneer.png'
+    };
+
+    const icon = iconMap[resourceKey];
+    if (icon && resourceKey !== 'popChildren') {
+      floatingText.innerHTML = `${value > 0 ? '+' : ''}${value} <img src="${icon}" class="fct-icon">`;
+    } else if (resourceKey === 'popChildren') {
+      floatingText.textContent = `${value > 0 ? '+' : ''}${value} 👶`;
+    } else {
+      floatingText.textContent = `${value > 0 ? '+' : ''}${value}`;
+    }
+
+    floatingText.style.left = `${rect.left + rect.width / 2}px`;
+    floatingText.style.top = `${rect.top + rect.height / 2}px`;
+
+    document.body.appendChild(floatingText);
+    setTimeout(() => floatingText.remove(), 1500);
+  }
+
+  updateCriticalResourceHighlight(s) {
+    if (!this.el.topbarContent) return;
+
+    const dailyConsumption = (s.popChildren * 1) + (s.popWorkers * 2) + (s.popEngineers * 3);
+    const foodDaysLeft = dailyConsumption > 0 ? s.nahrung / dailyConsumption : 999;
+    const o2DaysLeft = dailyConsumption > 0 ? s.sauerstoff / dailyConsumption : 999;
+
+    const cells = this.el.topbarContent.querySelectorAll('.resource-cell');
+    cells.forEach(cell => {
+      cell.classList.remove('resource-critical');
+
+      if (cell.classList.contains('food') && foodDaysLeft < 2) {
+        cell.classList.add('resource-critical');
+      }
+      if (cell.classList.contains('o2') && o2DaysLeft < 2) {
+        cell.classList.add('resource-critical');
+      }
+      if (cell.classList.contains('happiness') && s.zufriedenheit < 30) {
+        cell.classList.add('resource-critical');
+      }
+      if (cell.classList.contains('planet') && s.planet < 30) {
+        cell.classList.add('resource-critical');
+      }
+    });
+  }
+
   log(text) {
-    const el = document.createElement('div');
-    el.className = 'log-line'; 
-    el.textContent = `[Day ${this.scene?.state.day || 1}] ${text}`;
-    this.el.log.prepend(el);
+    // Determine severity from message content
+    let severity = 'info';
+    if (text.includes('💀') || text.includes('Starvation') || text.includes('RIOT') || text.includes('CRITICAL')) {
+      severity = 'critical';
+    } else if (text.includes('⚠️') || text.includes('Warning') || text.includes('Failure')) {
+      severity = 'warning';
+    } else if (text.includes('✅') || text.includes('complete') || text.includes('graduated') || text.includes('👶')) {
+      severity = 'success';
+    }
+
+    this.showToast(text, severity);
+  }
+
+  showToast(message, severity = 'info') {
+    if (!this.el.toastContainer) return;
+
+    // Limit to 3 toasts max
+    const existingToasts = this.el.toastContainer.querySelectorAll('.toast:not(.fade-out)');
+    if (existingToasts.length >= 3) {
+      existingToasts[0].remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${severity}`;
+    toast.textContent = message;
+
+    this.el.toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => toast.remove(), 500);
+    }, 3500);
   }
 
   showEnding(type) {
