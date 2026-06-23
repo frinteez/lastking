@@ -1,0 +1,94 @@
+.cursor-trail-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.cosmic-star {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: cosmic-drift 0.9s ease-out forwards;
+}
+
+/* Glowing dot */
+.cosmic-star:not(.cross):not(.sparkle) {
+  border-radius: 50%;
+}
+
+/* Cross / plus star shape */
+.cosmic-star.cross {
+  border-radius: 0;
+  background: transparent !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cross-h, .cross-v {
+  position: absolute;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+.cross-h {
+  width: 100%;
+  height: 20%;
+}
+
+.cross-v {
+  width: 20%;
+  height: 100%;
+}
+
+/* Sparkle star glyph */
+.cosmic-star.sparkle {
+  background: transparent !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: inherit;
+  line-height: 1;
+  animation: cosmic-sparkle 0.9s ease-out forwards;
+}
+
+.sparkle-inner {
+  font-size: 1em;
+  display: block;
+  color: inherit;
+  text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+}
+
+@keyframes cosmic-drift {
+  0% {
+    transform: translate(calc(-50% + 0px), -50%) scale(1);
+    opacity: 0.9;
+  }
+  60% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--drift-x, 0px)), calc(-50% + var(--drift-y, -15px))) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes cosmic-sparkle {
+  0% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--drift-x, 0px)), calc(-50% + var(--drift-y, -15px))) scale(0) rotate(45deg);
+    opacity: 0;
+  }
+}

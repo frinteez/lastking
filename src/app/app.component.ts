@@ -6,11 +6,12 @@ import { StartMenuComponent } from './features/game/start-menu/start-menu.compon
 import { ModalsContainerComponent } from './features/game/modals/modals-container.component';
 import { DailySummaryComponent } from './features/game/daily-summary/daily-summary.component';
 import { ToastContainerComponent } from './features/game/toast/toast-container.component';
+import { CursorTrailComponent } from './features/game/cursor-trail/cursor-trail.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [GameCanvasComponent, HudComponent, SidebarComponent, StartMenuComponent, ModalsContainerComponent, DailySummaryComponent, ToastContainerComponent],
+  imports: [GameCanvasComponent, HudComponent, SidebarComponent, StartMenuComponent, ModalsContainerComponent, DailySummaryComponent, ToastContainerComponent, CursorTrailComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })

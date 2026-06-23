@@ -29,6 +29,7 @@ export default class GameScene extends Phaser.Scene {
   preload() {
     this.load.image('bg_space', '/assets/bg_space.png');
     this.load.image('bg_planet', '/assets/bg_planet.png');
+    this.load.image('bg_space_nebula', '/assets/bg_space_nebula.jpg');
     this.load.image('tile_palace', '/assets/tile_palace.png');
     this.load.image('tile_farm', '/assets/tile_farm.png');
     this.load.image('tile_o2', '/assets/tile_o2.png');
@@ -68,16 +69,29 @@ export default class GameScene extends Phaser.Scene {
     const mapW = this.MAP_W * this.TILE_SIZE;
     const mapH = this.MAP_H * this.TILE_SIZE;
 
-    this.add.image(mapW / 2, mapH / 2, 'bg_space').setOrigin(0.5).setScale(1.8).setDepth(-2);
-    this.bgPlanet = this.add.image(0, 0, 'bg_planet').setOrigin(0).setDisplaySize(mapW, mapH).setDepth(-1);
+    // Create massive cosmic nebula background
+    this.bgNebula = this.add.image(mapW / 2, mapH / 2, 'bg_space_nebula').setOrigin(0.5).setScale(4.0).setDepth(-2);
+    
+    // Aliveness breathing tween for the background nebula
+    this.tweens.add({
+      targets: this.bgNebula,
+      scaleX: 4.2,
+      scaleY: 4.2,
+      alpha: 0.8,
+      duration: 8000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
 
-    // this.tweens.add({
-    //   targets: this.bgPlanet,
-    //   angle: 360,
-    //   duration: 360000,
-    //   repeat: -1,
-    //   ease: 'Linear'
-    // });
+    // The actual map surface (planet), centered and STABLE - no rotation
+    this.bgPlanet = this.add.image(mapW / 2, mapH / 2, 'bg_planet').setOrigin(0.5).setDisplaySize(mapW, mapH).setDepth(-1);
+
+    // Store map screen-space info for Angular cursor trail to use
+    this.mapCenterX = mapW / 2;
+    this.mapCenterY = mapH / 2;
+    this.mapHalfW = mapW / 2;
+    this.mapHalfH = mapH / 2;
 
     this.tiles = Array(this.MAP_W * this.MAP_H).fill(null).map((_, i) => ({
       x: i % this.MAP_W, y: Math.floor(i / this.MAP_W), sprite: null, building: null, destroyed: false
@@ -93,7 +107,8 @@ export default class GameScene extends Phaser.Scene {
     this.createBuildCostTooltip();
 
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, this.MAP_W * this.TILE_SIZE, this.MAP_H * this.TILE_SIZE);
+    // Set strict bounds to the massive background so player cannot scroll into void
+    cam.setBounds(-1536, -1536, 4096, 4096);
     cam.centerOn(mapW/2, mapH/2);
     cam.setZoom(2.0);
 
@@ -354,7 +369,11 @@ export default class GameScene extends Phaser.Scene {
       }
     });
 
-    this.input.on('wheel', (p, go, dx, dy) => { cam.setZoom(Phaser.Math.Clamp(cam.zoom - dy*0.001, 0.4, 2)); });
+    this.input.on('wheel', (p, go, dx, dy) => { 
+      // Clamp minimum zoom so camera never exceeds the 4096 bounds
+      // Hard clamp - minimum 0.8 ensures nebula always fills the screen
+      cam.setZoom(Phaser.Math.Clamp(cam.zoom - dy*0.001, 0.8, 2.5)); 
+    });
   }
 
   setupEvents() {
