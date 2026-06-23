@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { GameState } from './game-state.model';
+import { ToastService } from './toast.service';
 
 @Injectable({
   providedIn: 'root'
@@ -11,7 +12,15 @@ export class GameBridgeService {
 
   private phaserScene: any = null;
 
-  constructor() {}
+  constructor(private toastService: ToastService) {}
+
+  public handleToast(msg: string, type: 'error' | 'system') {
+    if (type === 'error') {
+      this.toastService.showError(msg);
+    } else {
+      this.toastService.showSystem(msg);
+    }
+  }
 
   // Called by GameScene or GameCanvasComponent to register the scene
   public registerScene(scene: any) {
@@ -43,25 +52,50 @@ export class GameBridgeService {
     }
   }
 
+  private dailyBriefingSubject = new BehaviorSubject<{ show: boolean, events: string[] }>({ show: false, events: [] });
+  dailyBriefing$ = this.dailyBriefingSubject.asObservable();
+
+  private isAdvancingDay = false;
+  private currentDayEvents: string[] = [];
+
+  public handleCosmicEvent(msg: string) {
+    if (this.isAdvancingDay) {
+      this.currentDayEvents.push(msg);
+    }
+  }
+
   public nextDay() {
+    this.isAdvancingDay = true;
+    this.currentDayEvents = [];
     if (this.phaserScene) {
       this.phaserScene.events.emit('end-day');
     }
+    this.isAdvancingDay = false;
+    
+    // Trigger the Daily Briefing UI if there are events
+    if (this.currentDayEvents.length > 0) {
+      this.dailyBriefingSubject.next({ show: true, events: [...this.currentDayEvents] });
+    }
+  }
+
+  public closeDailyBriefing() {
+    this.dailyBriefingSubject.next({ show: false, events: [] });
   }
 
   public setTradeOffer(faction: string, offer: number) {
     // future integration
   }
 
-  public submitTrade(faction: string, qty: number, bluff: boolean) {
+  public submitTrade(faction: string, product: string, payment: string, qty: number, bluff: boolean): string {
     if (this.phaserScene && this.phaserScene.handleTrade) {
-      this.phaserScene.handleTrade(faction, qty, bluff);
+      return this.phaserScene.handleTrade(faction, product, payment, qty, bluff);
     }
+    return '';
   }
 
   public setTaxLevel(level: number) {
     if (this.phaserScene) {
-      this.phaserScene.state.steuerStufe = level;
+      this.phaserScene.state.taxLevel = level;
       this.phaserScene.updateUI();
     }
   }

@@ -11,9 +11,10 @@ export function createGame(parentContainerId) {
       width: '100%',
       height: '100%'
     },
+    dom: { createContainer: true },
     scene: [GameScene],
     physics: { default: 'arcade' },
-    render: { pixelArt: false, antialias: true }
+    render: { pixelArt: true, antialias: false }
   };
 
   const game = new Phaser.Game(config);

@@ -15,9 +15,20 @@ export interface GameState {
   engineers: number;
   children: number;
   drones: number;
+  dronesCapacity?: number;
   efficiency: number;
   netIncome: number;
   steuerStufe: number;
+  taxLevel?: number;
+  cooldowns?: Record<string, number>;
   factions: { [key: string]: { loyalty: number } };
+  workersLocked?: number;
+  constructionEngineersLocked?: number;
+  dronesEngineersLocked?: number;
+  popWorkers?: number;
+  popEngineers?: number;
+  popChildren?: number;
+  schoolEnrollments?: { qty: number }[];
+  academyEnrollments?: { qty: number }[];
   techs?: Record<string, boolean>;
 }

@@ -8,6 +8,22 @@ export default class GameScene extends Phaser.Scene {
     this.MAP_W = 16;
     this.MAP_H = 16;
     this.buildMode = null;
+    this.isPanning = false;
+    this.panStart = {x:0, y:0};
+    this.isModalOpen = false;
+  }
+
+  setModalOpen(isOpen) {
+    this.isModalOpen = isOpen;
+    if (isOpen) {
+      if (this.buildPreview) this.buildPreview.setVisible(false);
+      this.hideBuildCostTooltip();
+      this.events.emit('hide-map-tooltip');
+      // Do not cancel build mode entirely, just hide the preview while modal is open, 
+      // but if the user wants to keep building after modal closes, it's fine.
+      // Or actually, maybe cancel build mode:
+      // this.events.emit('cancel-build-mode');
+    }
   }
 
   preload() {
@@ -77,9 +93,9 @@ export default class GameScene extends Phaser.Scene {
     this.createBuildCostTooltip();
 
     const cam = this.cameras.main;
-    cam.setBounds(-500, -500, mapW + 1000, mapH + 1000);
+    cam.setBounds(0, 0, this.MAP_W * this.TILE_SIZE, this.MAP_H * this.TILE_SIZE);
     cam.centerOn(mapW/2, mapH/2);
-    cam.setZoom(0.8);
+    cam.setZoom(2.0);
 
     // Initial Start
     const palaceConfig = this.getBuildConfig('tile_palace');
@@ -239,6 +255,13 @@ export default class GameScene extends Phaser.Scene {
         this.panStart = {x: pointer.x, y: pointer.y};
       }
 
+      if (this.isModalOpen) {
+        this.buildPreview.setVisible(false);
+        this.hideBuildCostTooltip();
+        this.events.emit('hide-map-tooltip');
+        return;
+      }
+
       if (this.buildMode) {
         const tx = Math.floor(w.x / this.TILE_SIZE);
         const ty = Math.floor(w.y / this.TILE_SIZE);
@@ -343,18 +366,18 @@ export default class GameScene extends Phaser.Scene {
 
   getBuildConfig(key) {
     const dict = {
-      tile_palace: { size: 1, cost: 0, mineralCost: 0, workers: 0 },
-      tile_farm: { size: 1, cost: 80, mineralCost: 50, workers: 2 },
-      tile_o2: { size: 1, cost: 100, mineralCost: 60, workers: 2 },
-      tile_housing: { size: 1, cost: 50, mineralCost: 30, workers: 1 },
-      tile_mine: { size: 1, cost: 150, mineralCost: 80, workers: 3 },
-      tile_dronehub: { size: 1, cost: 200, mineralCost: 100, workers: 2 },
-      tile_school: { size: 1, cost: 150, mineralCost: 75, workers: 2 },
-      tile_uni: { size: 1, cost: 200, mineralCost: 120, workers: 4 },
-      atmo_synthesizer: { size: 2, cost: 1200, mineralCost: 650, workers: 8 },
-      planetary_cracker: { size: 2, cost: 1400, mineralCost: 700, workers: 10 },
-      planet_stabilizer: { size: 2, cost: 800, mineralCost: 400, workers: 10 },
-      ark_ship: { size: 2, cost: 1000, mineralCost: 500, workers: 10 }
+      tile_palace: { size: 1, cost: 0, mineralCost: 0, workers: 0, name: 'Palace', desc: 'The seat of your power.', days: 0 },
+      tile_farm: { size: 1, cost: 80, mineralCost: 50, workers: 2, name: 'Agri-Farm', desc: 'Produces Food (Nahrung) to prevent starvation.', days: 3 },
+      tile_o2: { size: 1, cost: 100, mineralCost: 60, workers: 2, name: 'O2 Generator', desc: 'Synthesizes breathable Oxygen (O2) for the colony.', days: 3 },
+      tile_housing: { size: 1, cost: 50, mineralCost: 30, workers: 1, name: 'Housing Block', desc: 'Increases population capacity.', days: 3 },
+      tile_mine: { size: 1, cost: 150, mineralCost: 80, workers: 3, name: 'Mine', desc: 'Extracts Minerals from the planet crust.', days: 3 },
+      tile_dronehub: { size: 1, cost: 200, mineralCost: 100, workers: 2, name: 'Drone Hub', desc: 'Houses and maintains automated drones.', days: 3 },
+      tile_school: { size: 1, cost: 150, mineralCost: 75, workers: 2, name: 'School', desc: 'Educates Children into Workers.', days: 3 },
+      tile_uni: { size: 1, cost: 200, mineralCost: 120, workers: 4, name: 'Royal Academy', desc: 'Trains Workers into Engineers. Conducts Research.', days: 3 },
+      atmo_synthesizer: { size: 2, cost: 1200, mineralCost: 650, workers: 8, name: 'Atmo-Synth', desc: 'Massively boosts O2 production.', days: 5 },
+      planetary_cracker: { size: 2, cost: 1400, mineralCost: 700, workers: 10, name: 'Planetary Cracker', desc: 'Extreme mineral extraction. Damages planet health.', days: 5 },
+      planet_stabilizer: { size: 2, cost: 800, mineralCost: 400, workers: 10, name: 'Stabilizer', desc: "Heals the planet's structural integrity.", days: 5 },
+      ark_ship: { size: 2, cost: 1000, mineralCost: 500, workers: 10, name: 'Royal Ark', desc: 'A vessel to escape this dying world.', days: 5 }
     };
     return dict[key];
   }
@@ -364,11 +387,11 @@ export default class GameScene extends Phaser.Scene {
     if(!config) return;
 
     if (this.state.geld < config.cost) {
-      this.events.emit('cosmic-event', `❌ Need ${config.cost} Money.`); return;
+      this.events.emit('toast-event', { msg: `Need ${config.cost} Credits.`, type: 'error' }); return;
     }
     
     if (this.state.minerals < config.mineralCost) {
-      this.events.emit('cosmic-event', `❌ Need ${config.mineralCost} Minerals.`); return;
+      this.events.emit('toast-event', { msg: `Need ${config.mineralCost} Minerals.`, type: 'error' }); return;
     }
     
     const availableWorkers = Math.max(0, this.state.popWorkers - (this.state.workersLocked || 0));
@@ -377,9 +400,9 @@ export default class GameScene extends Phaser.Scene {
     if (this.state.childLaborDaysRemaining > 0) availableConstructionLabor += this.state.popChildren; // children act as temporary builders
 
     if (config.size === 2 && availableEngineers < config.workers) {
-      this.events.emit('cosmic-event', `❌ Need ${config.workers} Engineers (${availableEngineers} available).`); return;
+      this.events.emit('toast-event', { msg: `Need ${config.workers} Engineers (${availableEngineers} avail).`, type: 'error' }); return;
     } else if (config.size === 1 && availableConstructionLabor < config.workers) {
-      this.events.emit('cosmic-event', `❌ Need ${config.workers} free workers.`); return;
+      this.events.emit('toast-event', { msg: `Need ${config.workers} Workers/Eng (${availableConstructionLabor} avail).`, type: 'error' }); return;
     }
 
     let lockedWorkers = 0;
@@ -404,13 +427,52 @@ export default class GameScene extends Phaser.Scene {
     this.executeBuild(tx, ty, this.buildMode, config, config.size === 2, false, true, lockedWorkers, lockedEngineers);
   }
 
+  bindBuildingInteractions(spr, bld) {
+    spr.setInteractive();
+    spr.on('pointerover', () => {
+      this.tweens.killTweensOf(spr);
+      this.tweens.add({
+        targets: spr,
+        scaleX: (spr.originalScaleX || 1) * 1.05,
+        scaleY: (spr.originalScaleY || 1) * 1.05,
+        duration: 200,
+        ease: 'Power1'
+      });
+    });
+    spr.on('pointerout', () => {
+      this.tweens.killTweensOf(spr);
+      this.tweens.add({
+        targets: spr,
+        scaleX: spr.originalScaleX || 1,
+        scaleY: spr.originalScaleY || 1,
+        duration: 200,
+        ease: 'Power1'
+      });
+    });
+    spr.on('pointerdown', (pointer) => {
+      if (pointer.rightButtonDown() || pointer.middleButtonDown()) return;
+      if (this.buildMode) {
+        const w = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        this.placeBuilding(Math.floor(w.x/this.TILE_SIZE), Math.floor(w.y/this.TILE_SIZE));
+        return;
+      }
+      if (bld.daysRemaining === 0) {
+        if (bld.key === 'tile_school' || bld.key === 'tile_uni') {
+          this.events.emit('open-education-modal', bld.key === 'tile_school' ? 'school' : 'academy');
+        } else if (bld.key === 'tile_dronehub') {
+          this.events.emit('open-drone-modal');
+        }
+      }
+    });
+  }
+
   executeBuild(tx, ty, key, config, is2x2, instant, deductCost = true, lockedWorkers = 0, lockedEngineers = 0) {
     // Re-validate labor availability just before execution
     const currentAvailWorkers = Math.max(0, this.state.popWorkers - (this.state.workersLocked || 0));
     const currentAvailEngineers = Math.max(0, this.state.popEngineers - (this.state.dronesEngineersLocked || 0) - (this.state.constructionEngineersLocked || 0));
     
     if (lockedWorkers > currentAvailWorkers || lockedEngineers > currentAvailEngineers) {
-      this.events.emit('cosmic-event', `❌ Build cancelled: insufficient labor (workers: need ${lockedWorkers}, have ${currentAvailWorkers}; engineers: need ${lockedEngineers}, have ${currentAvailEngineers}).`);
+      this.events.emit('toast-event', { msg: `Insufficient labor.`, type: 'error' });
       return;
     }
     
@@ -421,7 +483,7 @@ export default class GameScene extends Phaser.Scene {
     this.state.workersLocked += lockedWorkers;
     this.state.constructionEngineersLocked += lockedEngineers;
 
-    const bld = { key, daysRemaining: instant ? 0 : 3, workers: config.workers, active: false, lockedWorkers, lockedEngineers };
+    const bld = { key, daysRemaining: instant ? 0 : (config.days || 3), totalDays: config.days || 3, workers: config.workers, active: false, lockedWorkers, lockedEngineers };
     
     let sprX = tx * this.TILE_SIZE + (is2x2 ? this.TILE_SIZE : this.TILE_SIZE / 2);
     let sprY = ty * this.TILE_SIZE + (is2x2 ? this.TILE_SIZE : this.TILE_SIZE / 2);
@@ -432,39 +494,15 @@ export default class GameScene extends Phaser.Scene {
 
     if(!instant) { spr.setTint(0x4466aa); spr.setAlpha(0.6); }
     else {
-      spr.setInteractive();
-      spr.on('pointerover', () => {
-        this.tweens.killTweensOf(spr);
-        this.tweens.add({
-          targets: spr,
-          scaleX: spr.originalScaleX * 1.05,
-          scaleY: spr.originalScaleY * 1.05,
-          duration: 200,
-          ease: 'Power1'
-        });
-      });
-      spr.on('pointerout', () => {
-        this.tweens.killTweensOf(spr);
-        this.tweens.add({
-          targets: spr,
-          scaleX: spr.originalScaleX,
-          scaleY: spr.originalScaleY,
-          duration: 200,
-          ease: 'Power1'
-        });
-      });
+      this.bindBuildingInteractions(spr, bld);
     }
     bld.sprite = spr;
 
     if (!instant) {
-      const bldW = this.TILE_SIZE * (is2x2 ? 2 : 1);
-      bld.overlay = this.add.rectangle(sprX, sprY, bldW, bldW, 0x080c14, 0.85).setStrokeStyle(2, 0x00e5ff, 0.8).setDepth(9);
-      const dayStr = bld.daysRemaining === 1 ? 'DAY' : 'DAYS';
-      bld.timerText = this.add.text(sprX, sprY, bld.daysRemaining + '\n' + dayStr, { fontFamily: 'Inter, sans-serif', fontSize: is2x2 ? '22px' : '14px', fontWeight: '800', fill: '#00e5ff', align: 'center', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5).setDepth(10);
+      // Angular overlay will handle the UI construction indicator
     }
 
     if (is2x2) {
-      bld.daysRemaining = instant ? 0 : 5;
       for(let oy=0;oy<2;oy++) for(let ox=0;ox<2;ox++) this.tiles[(tx+ox)+(ty+oy)*this.MAP_W].building = bld;
     } else {
       this.tiles[tx+ty*this.MAP_W].building = bld;
@@ -473,19 +511,59 @@ export default class GameScene extends Phaser.Scene {
     this.events.emit('cancel-build-mode');
     this.syncSentimentAliases();
     this.events.emit('state-updated', this.state);
-    if(!instant) this.events.emit('cosmic-event', `🏗️ Construction started: ${key.split('_')[1] || key}`);
+    if(!instant) {
+      const bConfig = this.getBuildConfig(key);
+      const bName = bConfig ? bConfig.name : (key.split('_')[1] || key);
+      this.events.emit('cosmic-event', `🏗️ Construction started: ${bName}`);
+    }
   }
 
   createBuildCostTooltip() {
     const host = document.getElementById('ui-layer') || document.body;
     this.buildCostTooltipEl = document.createElement('div');
-    this.buildCostTooltipEl.className = 'build-cost-tooltip hidden';
+    this.buildCostTooltipEl.className = 'ui-build-cost-tooltip hidden';
     host.appendChild(this.buildCostTooltipEl);
   }
 
   updateBuildCostTooltip(screenX, screenY, config) {
     if (!this.buildCostTooltipEl) return;
-    this.buildCostTooltipEl.innerHTML = `Cost: ${config.cost} <img src="/assets/icon_money.png" class="inline-icon" alt="Money"> + ${config.mineralCost} <img src="/assets/icon_min.png" class="inline-icon" alt="Minerals">`;
+    
+    let html = `<strong>${config.name || 'Building'}</strong>`;
+    if (config.desc) {
+      html += `<div style="color: #a0aec0;">${config.desc}</div>`;
+    }
+    html += `<div class="tooltip-divider"></div>`;
+    
+    html += `<div style="display: flex; flex-direction: column; gap: 4px;">`;
+    
+    if (config.cost > 0 || config.mineralCost > 0) {
+      html += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                 <span>Cost:</span>
+                 <span style="display: flex; align-items: center;">
+                   ${config.cost > 0 ? `${config.cost} <img src="/assets/icon_money.png" alt="Money" style="margin-right: 4px;">` : ''}
+                   ${config.mineralCost > 0 ? `${config.cost > 0 ? '+ ' : ''}${config.mineralCost} <img src="/assets/icon_min.png" alt="Minerals">` : ''}
+                 </span>
+               </div>`;
+    }
+    
+    if (config.days > 0) {
+      html += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                 <span>Time:</span>
+                 <span style="color: #4ade80;">${config.days} Days</span>
+               </div>`;
+    }
+    
+    if (config.workers > 0) {
+      const laborType = config.size === 2 ? 'Engineers' : 'Workers';
+      html += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                 <span>Personnel:</span>
+                 <span style="color: #60a5fa;">${config.workers} ${laborType}</span>
+               </div>`;
+    }
+    
+    html += `</div>`;
+    
+    this.buildCostTooltipEl.innerHTML = html;
     this.buildCostTooltipEl.style.left = `${screenX + 14}px`;
     this.buildCostTooltipEl.style.top = `${screenY + 14}px`;
     this.buildCostTooltipEl.classList.remove('hidden');
@@ -497,7 +575,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   executeDecree(type) {
-    if (this.state.cooldowns[type] > 0) return this.events.emit('cosmic-event', `⏳ Decree on cooldown.`);
+    if (this.state.cooldowns[type] > 0) return this.events.emit('toast-event', { msg: `Decree on cooldown.`, type: 'error' });
     
     let cost = 0;
     if (type === 'propaganda') cost = 300;
@@ -508,7 +586,7 @@ export default class GameScene extends Phaser.Scene {
     else if (type === 'publicHealth') cost = 300;
     else if (type === 'childLabor') cost = 100;
     
-    if (this.state.geld < cost) return this.events.emit('cosmic-event', `❌ Insufficient Money.`);
+    if (this.state.geld < cost) return this.events.emit('toast-event', { msg: 'Insufficient Credits.', type: 'error' });
 
     this.state.geld -= cost;
     
@@ -555,17 +633,28 @@ export default class GameScene extends Phaser.Scene {
       this.state.cooldowns.childLabor = 15;
     } else if (type === 'martialLaw') {
       if (this.state.geld < 500) {
-        this.events.emit('cosmic-event', '❌ Not enough Money for Martial Law.');
+        this.events.emit('toast-event', { msg: 'Not enough Credits for Martial Law.', type: 'error' });
         return;
       }
       this.state.geld -= 500;
       this.state.zufriedenheit = Math.max(0, this.state.zufriedenheit - 20);
       this.state.angst = Math.min(100, this.state.angst + 40);
       this.state.martialLawDaysRemaining = 5;
-      this.state.cooldowns.martialLaw = 10;
+      this.state.cooldowns.martialLaw = 20;
     }
 
-    this.events.emit('cosmic-event', `📜 Decree Executed: ${type.toUpperCase()}`);
+    const decreeNames = {
+      propaganda: 'Propaganda Broadcast',
+      inquisition: 'Inquisition',
+      social: 'Social Relief',
+      suppressRiots: 'Suppress Riots',
+      manipulation: 'Market Manipulation',
+      publicHealth: 'Public Health',
+      childLabor: 'Child Labor',
+      martialLaw: 'Martial Law'
+    };
+
+    this.events.emit('toast-event', { msg: `Decree Executed: ${decreeNames[type]}`, type: 'system' });
     this.syncSentimentAliases();
     this.events.emit('state-updated', this.state);
   }
@@ -693,7 +782,10 @@ export default class GameScene extends Phaser.Scene {
     this.state.day++;
     // Tax Implementation - if Tax > 2, Happiness -3 per day
     const T = Phaser.Math.Clamp(this.state.taxLevel, 0, 4);
-    this.state.geld += (T * 30);
+    // Tax Income is dependent on Population size
+    const totalPop = getTotalPopulation(this.state);
+    this.state.geld += (T * 2.5 * totalPop);
+
     if (T > 2) {
       this.state.zufriedenheit -= 3;
     }
@@ -701,7 +793,6 @@ export default class GameScene extends Phaser.Scene {
     for (const key in this.state.cooldowns) if (this.state.cooldowns[key] > 0) this.state.cooldowns[key]--;
     
     // Population & Lifecycle Engine
-    const totalPop = getTotalPopulation(this.state);
     const dailyFoodO2 = (this.state.popChildren * 1) + (this.state.popWorkers * 2) + (this.state.popEngineers * 3);
 
     this.state.nahrung -= dailyFoodO2;
@@ -817,13 +908,16 @@ export default class GameScene extends Phaser.Scene {
       }
 
       // Log status change
+      const bConfig = this.getBuildConfig(b.key);
+      const bName = bConfig ? bConfig.name : (b.key.split('_')[1] || b.key);
+
       if (prevStatus !== newStatus && newStatus !== 'active' && !forcedLabor) {
         const labels = { abandoned: '🔴 ABANDONED', strike: '✊ STRIKE', damaged: '☢️ DAMAGED' };
-        this.events.emit('cosmic-event', `${labels[newStatus]}: ${b.key}`);
+        this.events.emit('cosmic-event', `${labels[newStatus]}: ${bName}`);
       } else if (forcedLabor && prevStatus === 'strike') {
-        this.events.emit('cosmic-event', `⚠️ Forced Labor: ${b.key}`);
+        this.events.emit('cosmic-event', `⚠️ Forced Labor: ${bName}`);
       } else if (prevStatus !== newStatus && newStatus === 'active' && !forcedLabor) {
-        this.events.emit('cosmic-event', `✅ Building recovered: ${b.key}`);
+        this.events.emit('cosmic-event', `✅ Building recovered: ${bName}`);
       }
     }
 
@@ -876,10 +970,8 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Consume daily resources
-    const dailyConsumption = (this.state.popChildren * 1) + (this.state.popWorkers * 2) + (this.state.popEngineers * 3);
-    this.state.nahrung -= dailyConsumption;
-    this.state.sauerstoff -= dailyConsumption;
+    // Consume daily resources was previously done and clamped above, we just need to ensure we don't double dip.
+    // (Removed duplicate dailyConsumption logic here)
 
     // Starvation Grace Period (3 days)
     if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
@@ -947,9 +1039,45 @@ export default class GameScene extends Phaser.Scene {
           this.state.constructionEngineersLocked = Math.max(0, this.state.constructionEngineersLocked - (b.lockedEngineers || 0));
           if (b.overlay) b.overlay.destroy();
           if (b.timerText) b.timerText.destroy();
+          if (b.domOverlay) b.domOverlay.destroy();
+          
+          // --- ANIMATION: Grid Shockwave & Thump ---
+          const config = this.getBuildConfig(b.key);
+          const is2x2 = config && config.size === 2;
+          const bldW = this.TILE_SIZE * (is2x2 ? 2 : 1);
+          
+          // Thump bounce
+          b.sprite.setScale((b.sprite.originalScaleX || 1) * 0.8, (b.sprite.originalScaleY || 1) * 0.8);
+          this.tweens.add({
+            targets: b.sprite,
+            scaleX: b.sprite.originalScaleX || 1,
+            scaleY: b.sprite.originalScaleY || 1,
+            duration: 600,
+            ease: 'Bounce.easeOut'
+          });
+          
+          // Expanding neon shockwave
+          const shockwave = this.add.rectangle(b.sprite.x, b.sprite.y, bldW, bldW);
+          shockwave.setStrokeStyle(4, 0x00e5ff, 1);
+          shockwave.setDepth(20);
+          
+          this.tweens.add({
+            targets: shockwave,
+            scaleX: 1.5,
+            scaleY: 1.5,
+            alpha: 0,
+            duration: 500,
+            ease: 'Sine.easeOut',
+            onComplete: () => shockwave.destroy()
+          });
+
+          // Bind interactions now that it is fully complete
+          this.bindBuildingInteractions(b.sprite, b);
         } else {
-          const dayStr = b.daysRemaining === 1 ? 'DAY' : 'DAYS';
-          if (b.timerText) b.timerText.setText(b.daysRemaining + '\n' + dayStr);
+          if (b.timerText) {
+            const dayStr = b.daysRemaining === 1 ? 'DAY' : 'DAYS';
+            b.timerText.setText(b.daysRemaining + '\n' + dayStr);
+          }
         }
       } else {
         if(b.key === 'tile_housing') { /* popCap already updated */ }
@@ -1214,23 +1342,51 @@ export default class GameScene extends Phaser.Scene {
     else if (techId === 'arkBlueprint') { costG = 2000; costW = 500; req = 'surveillance'; reqEng = 25; }
     else if (techId === 'royalGenome') { costG = 5000; costW = 1000; req = 'arkBlueprint'; reqEng = 30; }
 
-    if (this.state.techs[techId]) return this.events.emit('cosmic-event', 'Already researched.');
-    if (req && !this.state.techs[req]) return this.events.emit('cosmic-event', 'Missing prerequisite technology.');
-    if (this.state.popEngineers < reqEng) return this.events.emit('cosmic-event', `Requires ${reqEng} Engineers.`);
-    if (this.state.geld < costG || this.state.wissen < costW) return this.events.emit('cosmic-event', 'Insufficient Geld or Knowledge.');
+    if (this.state.techs[techId]) return this.events.emit('toast-event', { msg: 'Already researched.', type: 'error' });
+    if (req && !this.state.techs[req]) return this.events.emit('toast-event', { msg: 'Missing prerequisite technology.', type: 'error' });
+    if (this.state.popEngineers < reqEng) return this.events.emit('toast-event', { msg: `Requires ${reqEng} Engineers.`, type: 'error' });
+    if (this.state.geld < costG || this.state.wissen < costW) return this.events.emit('toast-event', { msg: 'Insufficient Credits or Knowledge.', type: 'error' });
 
     this.state.geld -= costG;
     this.state.wissen -= costW;
     this.state.techs[techId] = true;
-    this.events.emit('cosmic-event', `Research Complete.`);
+    this.events.emit('toast-event', { msg: `Research Complete.`, type: 'system' });
     this.events.emit('state-updated', this.state);
   }
 
-  handleTrade(faction, qtyStr, bluffActive) {
-    const qty = parseInt(qtyStr, 10);
-    const costTable = { rust: 200, order: 250, guild: 300 };
-    let basePrice = costTable[faction] || 200;
+  handleTrade(faction, product, payment, qtyNum, bluffActive) {
+    const qty = parseInt(qtyNum, 10) || 1;
+    
+    if (!this.state.techs) this.state.techs = {};
 
+    // Product Definitions
+    const products = {
+      minerals: { basePrice: 200, yield: 1000, grant: (q) => { this.state.minerals += q * 1000; } },
+      technology: { basePrice: 1500, yield: 1, grant: (q) => {
+        const allTechIds = ['hydroponics', 'advO2', 'deepExcavation', 'droneRouting', 'atmoSynthesizer', 'planetaryCracker', 'basicSchooling', 'tradeSkills', 'massMedia', 'surveillance', 'planetStabilizer', 'arkBlueprint', 'royalGenome'];
+        const locked = allTechIds.filter(id => !this.state.techs[id]);
+        if (locked.length > 0) {
+          // Shuffle and pick
+          const randTech = locked[Math.floor(Math.random() * locked.length)];
+          this.state.techs[randTech] = true;
+          this.events.emit('cosmic-event', `Unlocked Technology: ${randTech.toUpperCase()}!`);
+        } else {
+          this.state.wissen += 500;
+          this.events.emit('cosmic-event', `No new tech available. Granted 500 Knowledge.`);
+        }
+      }},
+      sauerstoff: { basePrice: 150, yield: 1000, grant: (q) => { this.state.sauerstoff += q * 1000; } },
+      nahrung: { basePrice: 100, yield: 1000, grant: (q) => { this.state.nahrung += q * 1000; } },
+      medicine: { basePrice: 400, yield: 1, grant: (q) => { this.state.gesundheit = Math.min(100, this.state.gesundheit + (20 * q)); } },
+      artifacts: { basePrice: 800, yield: 1, grant: (q) => { this.state.wissen += 40 * q; } },
+      geld: { basePrice: 500, yield: 1000, grant: (q) => { this.state.geld += q * 1000; } }
+    };
+
+    if (!products[product]) return "Unknown product requested.";
+    const pDef = products[product];
+    let basePrice = pDef.basePrice;
+
+    // Bluff Logic
     let loyalty = this.state.factionLoyalty[faction] || 0;
     if (bluffActive) {
       if (Math.random() < 0.5) {
@@ -1241,26 +1397,92 @@ export default class GameScene extends Phaser.Scene {
         this.events.emit('cosmic-event', `Bluff failed! Loyalty -40.`);
         this.state.factionLoyalty[faction] = Math.max(-100, loyalty);
         this.events.emit('state-updated', this.state);
-        return;
+        return "The bluff was called! They walked away insulted.";
       }
     }
     
+    // Discount Calculation
     let discount = Math.floor((Math.max(0, loyalty) / 100) * 40);
     let pricePerUnit = Math.floor(basePrice * (1 - discount / 100));
     let totalCost = pricePerUnit * qty;
-    let goodsAmount = qty * 1000;
 
-    // Faction goods type
-    let goodsType = faction === 'rust' ? 'minerals' : faction === 'order' ? 'sauerstoff' : 'nahrung';
+    // Process Payment
+    if (payment === 'geld') {
+      if (this.state.geld < totalCost) {
+        this.events.emit('toast-event', { msg: 'Insufficient Credits.', type: 'error' });
+        return "Insufficient Credits for this transaction.";
+      }
+      this.state.geld -= totalCost;
+    } else if (payment === 'mineralien') {
+      if (this.state.minerals < totalCost) {
+        this.events.emit('toast-event', { msg: 'Insufficient Minerals.', type: 'error' });
+        return "Insufficient Minerals for this transaction.";
+      }
+      this.state.minerals -= totalCost;
+    } else if (payment === 'nahrung') {
+      if (this.state.nahrung < totalCost) {
+        this.events.emit('toast-event', { msg: 'Insufficient Food.', type: 'error' });
+        return "Insufficient Food for this transaction.";
+      }
+      this.state.nahrung -= totalCost;
+    } else if (payment === 'child') {
+      let costInUnits = Math.ceil(totalCost / 100);
+      if (this.state.popChildren < costInUnits) return "Insufficient Children for this slave contract.";
+      this.state.popChildren -= costInUnits;
+      
+      let removed = costInUnits;
+      for (let i = this.state.citizenRoster.length - 1; i >= 0; i--) {
+        if (this.state.citizenRoster[i].type === 'child' && removed > 0) { this.state.citizenRoster.splice(i, 1); removed--; }
+      }
+    } else if (payment === 'worker') {
+      let costInUnits = Math.ceil(totalCost / 500);
+      if (this.state.popWorkers < costInUnits) return "Insufficient Workers for this slave contract.";
+      this.state.popWorkers -= costInUnits;
 
-    if (this.state[goodsType] < goodsAmount) {
-      return this.events.emit('cosmic-event', `Insufficient ${goodsType} for trade.`);
+      let removed = costInUnits;
+      for (let i = this.state.citizenRoster.length - 1; i >= 0; i--) {
+        if (this.state.citizenRoster[i].type === 'worker' && removed > 0) { this.state.citizenRoster.splice(i, 1); removed--; }
+      }
+    } else if (payment === 'engineer') {
+      let costInUnits = Math.ceil(totalCost / 3500);
+      const unassignedEng = Math.max(0, this.state.popEngineers - (this.state.dronesEngineersLocked || 0) - (this.state.constructionEngineersLocked || 0));
+      if (unassignedEng < costInUnits) return "Insufficient unassigned Engineers for this slave contract.";
+      this.state.popEngineers -= costInUnits;
+
+      let removed = costInUnits;
+      for (let i = this.state.citizenRoster.length - 1; i >= 0; i--) {
+        if (this.state.citizenRoster[i].type === 'engineer' && removed > 0) { this.state.citizenRoster.splice(i, 1); removed--; }
+      }
+    } else {
+      return "Invalid payment method.";
     }
 
-    this.state[goodsType] -= goodsAmount;
-    this.state.geld += totalCost;
+    // Grant Product
+    pDef.grant(qty);
+
+    // Increase Loyalty
     this.state.factionLoyalty[faction] = Math.min(100, (this.state.factionLoyalty[faction] || 0) + (5 * qty));
-    this.events.emit('cosmic-event', `Trade successful. Earned ${totalCost} Geld.`);
     this.events.emit('state-updated', this.state);
+
+    const responses = {
+      rust: [
+        "The Obsidian eye sees your payment. The contract is fulfilled.",
+        "Shadows deliver. No refunds.",
+        "Your transaction has been erased from the ledger."
+      ],
+      order: [
+        "The sacred breath flows to you.",
+        "May the waters of the deep cleanse your colony.",
+        "We trade the holy substance. Do not squander it."
+      ],
+      guild: [
+        "A pleasure doing business. Scrap's loaded.",
+        "Don't ask where it came from. Just take it.",
+        "My crew will deliver it to the airlock. Watch your back."
+      ]
+    };
+
+    const flavorArray = responses[faction] || ["Trade complete."];
+    return flavorArray[Math.floor(Math.random() * flavorArray.length)];
   }
 }
