@@ -120,7 +120,6 @@ export class GameCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
         angst: s.angst,
         planetZustand: s.planet,
         tag: s.day,
-        fct: 0,
         population: totalPop,
         workers: popWorkers,
         engineers: popEngineers,
@@ -138,7 +137,6 @@ export class GameCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
         efficiency: eff,
         netIncome: scene.getNetIncome ? scene.getNetIncome() : 0,
         netIncomeDetails: s.netIncome || { food: 0, o2: 0, foodProduced: 0, o2Produced: 0, mineralsProduced: 0, consumed: 0 },
-        steuerStufe: s.taxLevel || 1,
         taxLevel: s.taxLevel || 1,
         cooldowns: s.cooldowns || {},
         factions: {

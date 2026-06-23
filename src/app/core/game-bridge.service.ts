@@ -82,10 +82,6 @@ export class GameBridgeService {
     this.dailyBriefingSubject.next({ show: false, events: [] });
   }
 
-  public setTradeOffer(faction: string, offer: number) {
-    // future integration
-  }
-
   public submitTrade(faction: string, product: string, payment: string, qty: number, bluff: boolean): string {
     if (this.phaserScene && this.phaserScene.handleTrade) {
       return this.phaserScene.handleTrade(faction, product, payment, qty, bluff);
@@ -96,7 +92,7 @@ export class GameBridgeService {
   public setTaxLevel(level: number) {
     if (this.phaserScene) {
       this.phaserScene.state.taxLevel = level;
-      this.phaserScene.updateUI();
+      this.phaserScene.events.emit('state-updated', this.phaserScene.state);
     }
   }
 

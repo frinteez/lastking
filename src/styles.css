@@ -69,45 +69,7 @@ html::before {
   z-index: 2; pointer-events: none;
 }
 
-.interactive { pointer-events: auto; }
 
-/* Topbar Redesign */
-.topbar {
-  position: absolute; top: 15px; left: 15px;
-  display: flex; align-items: center; gap: 12px; padding: 12px 20px;
-  border-radius: 8px; background: var(--glass-bg); backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border); box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-  max-width: calc(100vw - var(--sidebar-w) - 30px); flex-wrap: wrap;
-}
-
-.brand { font-weight: 800; color: var(--accent-gold); text-transform: uppercase; border-right: 1px solid var(--glass-border); padding-right: 12px; }
-.resources { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--text-main); line-height: 1.5; }
-.resource-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.res-icon { width: 20px; height: 20px; vertical-align: text-bottom; }
-
-/* Resource Cell Design */
-.resource-cell {
-  display: flex; align-items: center; gap: 6px; padding: 8px 14px;
-  border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.02); white-space: nowrap;
-  transition: all 0.2s ease;
-}
-.resource-cell:hover { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.2); }
-
-.resource-cell.health { background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(76, 175, 80, 0.08)); border-color: rgba(76, 175, 80, 0.3); }
-.resource-cell.food { background: linear-gradient(135deg, rgba(191, 113, 34, 0.22), rgba(255, 145, 0, 0.10)); border-color: rgba(221, 138, 57, 0.45); }
-.resource-cell.money { background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.08)); border-color: rgba(212, 175, 55, 0.3); }
-.resource-cell.o2 { background: linear-gradient(135deg, rgba(76, 216, 255, 0.18), rgba(0, 188, 212, 0.08)); border-color: rgba(102, 224, 255, 0.45); }
-.resource-cell.minerals { background: linear-gradient(135deg, rgba(156, 39, 176, 0.15), rgba(156, 39, 176, 0.08)); border-color: rgba(156, 39, 176, 0.3); }
-.resource-cell.knowledge { background: linear-gradient(135deg, rgba(232, 58, 181, 0.18), rgba(198, 32, 138, 0.08)); border-color: rgba(245, 85, 190, 0.45); }
-.resource-cell.population { background: linear-gradient(135deg, rgba(233, 30, 99, 0.15), rgba(233, 30, 99, 0.08)); border-color: rgba(233, 30, 99, 0.3); }
-.resource-cell.fear { background: linear-gradient(135deg, rgba(244, 67, 54, 0.16), rgba(170, 20, 20, 0.08)); border-color: rgba(244, 67, 54, 0.4); }
-.resource-cell.happiness { background: linear-gradient(135deg, rgba(255, 214, 10, 0.16), rgba(255, 169, 0, 0.08)); border-color: rgba(255, 214, 10, 0.35); }
-.resource-cell.planet { background: linear-gradient(135deg, rgba(65, 190, 110, 0.16), rgba(24, 122, 73, 0.08)); border-color: rgba(65, 190, 110, 0.35); }
-.resource-cell.day { background: linear-gradient(135deg, rgba(130, 145, 178, 0.16), rgba(70, 86, 120, 0.08)); border-color: rgba(149, 169, 210, 0.35); }
-
-.resource-cell.label { font-size: 9px; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; letter-spacing: 0.5px; }
-.resource-value { font-weight: 600; color: #fff; font-size: 12px; }
 
 .ui-build-cost-tooltip {
   position: fixed; z-index: 30;
@@ -145,27 +107,7 @@ html::before {
 
 
 
-/* Right Sidebar */
-.sidebar {
-  position: absolute; top: 0; right: 0;
-  width: var(--sidebar-w); height: 100vh;
-  background: var(--glass-bg); backdrop-filter: blur(20px);
-  border-left: 1px solid var(--glass-border); box-shadow: -8px 0 32px rgba(0,0,0,0.8);
-  display: flex; flex-direction: column; padding: 15px;
-}
 
-.sidebar-top-actions { display: flex; justify-content: flex-end; margin-bottom: 15px; }
-.sidebar-nav { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px; margin-bottom: 10px; }
-.nav-btn { flex: 1 1 45%; padding: 8px; background: transparent; border: 1px solid transparent; color: var(--muted); cursor: pointer; font-size: 11px; text-transform: uppercase; border-radius: 4px;}
-.nav-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
-.nav-btn.active { background: rgba(0,229,255,0.1); border: 1px solid var(--accent-cyan); color: #fff; }
-
-.sidebar-content { flex: 1; overflow-y: auto; }
-.panel { padding: 10px; background: rgba(255,255,255,0.02); border-radius: 6px; margin-bottom: 10px; }
-.panel h3 { margin: 0 0 10px 0; color: var(--accent-cyan); font-size: 12px; text-transform: uppercase; }
-
-.build-category h4 { margin: 0 0 8px 0; font-size: 10px; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--glass-border); padding-bottom: 4px;}
-.build-options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;}
 
 /* Floating Text System - replaces static log */
 .floating-text {
@@ -251,23 +193,7 @@ html::before {
   75% { transform: translateY(0) translateX(5px); }
 }
 
-.fct-icon {
-  width: 16px;
-  height: 16px;
-  vertical-align: middle;
-  display: inline-block;
-  margin-left: 2px;
-}
 
-/* Building Pulse Animation */
-.building-active-pulse {
-  animation: buildingPulse 3s ease-in-out infinite;
-}
-
-@keyframes buildingPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
-}
 
 .btn {
   border: 1px solid var(--glass-border); padding: 8px 12px; border-radius: 4px; 
@@ -280,7 +206,6 @@ html::before {
 .btn.primary:active { background: #fff; box-shadow: 0 0 15px var(--accent-cyan); transform: scale(0.98); }
 .btn.active-build { background: rgba(0,229,255,0.4); border-color: var(--accent-cyan); color: #fff; box-shadow: 0 0 10px var(--accent-cyan); }
 
-.tech-locked { display: none !important; }
 
 /* Fullscreen Modals */
 .fullscreen-modal {

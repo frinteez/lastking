@@ -19,15 +19,10 @@ export default class GameScene extends Phaser.Scene {
       if (this.buildPreview) this.buildPreview.setVisible(false);
       this.hideBuildCostTooltip();
       this.events.emit('hide-map-tooltip');
-      // Do not cancel build mode entirely, just hide the preview while modal is open, 
-      // but if the user wants to keep building after modal closes, it's fine.
-      // Or actually, maybe cancel build mode:
-      // this.events.emit('cancel-build-mode');
     }
   }
 
   preload() {
-    this.load.image('bg_space', '/assets/bg_space.png');
     this.load.image('bg_planet', '/assets/bg_planet.png');
     this.load.image('bg_space_nebula', '/assets/bg_space_nebula.jpg');
     this.load.image('tile_palace', '/assets/tile_palace.png');
@@ -87,11 +82,6 @@ export default class GameScene extends Phaser.Scene {
     // The actual map surface (planet), centered and STABLE - no rotation
     this.bgPlanet = this.add.image(mapW / 2, mapH / 2, 'bg_planet').setOrigin(0.5).setDisplaySize(mapW, mapH).setDepth(-1);
 
-    // Store map screen-space info for Angular cursor trail to use
-    this.mapCenterX = mapW / 2;
-    this.mapCenterY = mapH / 2;
-    this.mapHalfW = mapW / 2;
-    this.mapHalfH = mapH / 2;
 
     this.tiles = Array(this.MAP_W * this.MAP_H).fill(null).map((_, i) => ({
       x: i % this.MAP_W, y: Math.floor(i / this.MAP_W), sprite: null, building: null, destroyed: false
@@ -142,7 +132,7 @@ export default class GameScene extends Phaser.Scene {
   createInitialState() {
     return {
       day: 1,
-      geld: 1000, offshore: 0, minerals: 50, nahrung: 100, sauerstoff: 200,
+      geld: 1000, minerals: 50, nahrung: 100, sauerstoff: 200,
       gesundheit: 100, zufriedenheit: 100, happiness: 100, angst: 0, fear: 0, wissen: 50, planet: 100,
 
       taxLevel: 1,
@@ -1054,33 +1044,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Consume daily resources was previously done and clamped above, we just need to ensure we don't double dip.
-    // (Removed duplicate dailyConsumption logic here)
 
-    // Starvation Grace Period (3 days)
-    if (this.state.nahrung <= 0 || this.state.sauerstoff <= 0) {
-      this.state.starvationGraceDays--;
-
-      if (this.state.starvationGraceDays > 0) {
-        this.events.emit('cosmic-event', `⚠️ CRITICAL: ${this.state.starvationGraceDays} days until death. Happiness -20.`);
-        this.state.zufriedenheit -= 20;
-      } else {
-        const totalPop = this.state.popChildren + this.state.popWorkers + this.state.popEngineers;
-        if (totalPop > 0) {
-          if (this.state.popChildren > 0) {
-            this.state.popChildren--;
-          } else if (this.state.popWorkers > 0) {
-            this.state.popWorkers--;
-          } else if (this.state.popEngineers > 0) {
-            this.state.popEngineers--;
-          }
-          this.events.emit('cosmic-event', '💀 1 citizen has died from starvation.');
-        }
-        this.state.starvationGraceDays = 3;
-      }
-    } else {
-      this.state.starvationGraceDays = 3;
-    }
 
     if (this.state.efficiencyOverrideDays > 0) {
       this.state.efficiencyOverrideDays--;

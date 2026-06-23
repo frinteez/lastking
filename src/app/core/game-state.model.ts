@@ -9,7 +9,6 @@ export interface GameState {
   angst: number;
   planetZustand: number;
   tag: number;
-  fct: number;
   population: number;
   workers: number;
   engineers: number;
@@ -19,7 +18,6 @@ export interface GameState {
   efficiency: number;
   netIncome: number;
   netIncomeDetails?: { food: number; o2: number; foodProduced: number; o2Produced: number; mineralsProduced: number; consumed: number; };
-  steuerStufe: number;
   taxLevel?: number;
   cooldowns?: Record<string, number>;
   factions: { [key: string]: { loyalty: number } };
