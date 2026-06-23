@@ -74,27 +74,41 @@ export interface FloatingText {
             <div class="flex items-center gap-1 group relative cursor-help">
               <img src="/assets/icon_food.png" class="h-8 w-8 drop-shadow-[0_0_2px_#fb923c]" alt="Food">
               <span>{{ Math.floor(state.nahrung) }}</span>
-              <div class="absolute top-full right-0 mt-1 hidden group-hover:block bg-black border border-orange-400 p-2 text-xs w-48 z-50 text-orange-400 shadow-[0_0_10px_rgba(251,146,60,0.5)]">
+              <div class="absolute top-full right-0 mt-1 hidden group-hover:block bg-black border border-orange-400 p-2 text-xs w-64 z-50 text-orange-400 shadow-[0_0_10px_rgba(251,146,60,0.5)]">
                 <strong>Food (Nahrung)</strong><br>
-                Consumed daily by population. Produced by Farms.
+                Consumed daily by population. Produced by Farms.<br>
+                <div class="mt-1 text-orange-200 border-t border-orange-800 pt-1" *ngIf="state.netIncomeDetails">
+                  Produced: {{ state.netIncomeDetails.foodProduced }}<br>
+                  Consumed: {{ state.netIncomeDetails.consumed }}<br>
+                  Net Daily Income: <span [ngClass]="{'text-red-400': state.netIncomeDetails.food < 0, 'text-green-400': state.netIncomeDetails.food > 0}">{{ state.netIncomeDetails.food > 0 ? '+' : '' }}{{ state.netIncomeDetails.food }}</span>
+                </div>
               </div>
             </div>
             
             <div class="flex items-center gap-1 group relative cursor-help">
               <img src="/assets/icon_o2.png" class="h-8 w-8 drop-shadow-[0_0_2px_#bfdbfe]" alt="Oxygen">
               <span>{{ Math.floor(state.sauerstoff) }}</span>
-              <div class="absolute top-full right-0 mt-1 hidden group-hover:block bg-black border border-blue-200 p-2 text-xs w-48 z-50 text-blue-200 shadow-[0_0_10px_rgba(191,219,254,0.5)]">
+              <div class="absolute top-full right-0 mt-1 hidden group-hover:block bg-black border border-blue-200 p-2 text-xs w-64 z-50 text-blue-200 shadow-[0_0_10px_rgba(191,219,254,0.5)]">
                 <strong>Oxygen (O2)</strong><br>
-                Consumed daily by population. Produced by O2 Gens.
+                Consumed daily by population. Produced by O2 Gens.<br>
+                <div class="mt-1 text-blue-100 border-t border-blue-800 pt-1" *ngIf="state.netIncomeDetails">
+                  Produced: {{ state.netIncomeDetails.o2Produced }}<br>
+                  Consumed: {{ state.netIncomeDetails.consumed }}<br>
+                  Net Daily Income: <span [ngClass]="{'text-red-400': state.netIncomeDetails.o2 < 0, 'text-green-400': state.netIncomeDetails.o2 > 0}">{{ state.netIncomeDetails.o2 > 0 ? '+' : '' }}{{ state.netIncomeDetails.o2 }}</span>
+                </div>
               </div>
             </div>
             
             <div class="flex items-center gap-1 group relative cursor-help">
               <img src="/assets/icon_min.png" class="h-8 w-8 drop-shadow-[0_0_2px_#c084fc]" alt="Minerals">
               <span>{{ Math.floor(state.mineralien) }}</span>
-              <div class="absolute top-full right-0 mt-1 hidden group-hover:block bg-black border border-purple-400 p-2 text-xs w-48 z-50 text-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.5)]">
+              <div class="absolute top-full right-0 mt-1 hidden group-hover:block bg-black border border-purple-400 p-2 text-xs w-64 z-50 text-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.5)]">
                 <strong>Minerals</strong><br>
-                Used for construction. Extracted by Mines.
+                Used for construction. Extracted by Mines.<br>
+                <div class="mt-1 text-purple-200 border-t border-purple-800 pt-1" *ngIf="state.netIncomeDetails">
+                  Produced: {{ state.netIncomeDetails.mineralsProduced }}<br>
+                  <span class="text-xs text-purple-300 italic">(From Mines & Planetary Crackers)</span>
+                </div>
               </div>
             </div>
           </div>

@@ -18,6 +18,7 @@ export interface GameState {
   dronesCapacity?: number;
   efficiency: number;
   netIncome: number;
+  netIncomeDetails?: { food: number; o2: number; foodProduced: number; o2Produced: number; mineralsProduced: number; consumed: number; };
   steuerStufe: number;
   taxLevel?: number;
   cooldowns?: Record<string, number>;

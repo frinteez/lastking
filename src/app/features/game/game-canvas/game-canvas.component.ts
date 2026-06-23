@@ -137,6 +137,7 @@ export class GameCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
         dronesCapacity: s.drones?.capacity || 5,
         efficiency: eff,
         netIncome: scene.getNetIncome ? scene.getNetIncome() : 0,
+        netIncomeDetails: s.netIncome || { food: 0, o2: 0, foodProduced: 0, o2Produced: 0, mineralsProduced: 0, consumed: 0 },
         steuerStufe: s.taxLevel || 1,
         taxLevel: s.taxLevel || 1,
         cooldowns: s.cooldowns || {},

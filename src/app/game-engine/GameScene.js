@@ -187,8 +187,13 @@ export default class GameScene extends Phaser.Scene {
 
     let foodProduction = 0;
     let o2Production = 0;
+    let mineralsProduction = 0;
 
+    // Simulate drone servicing logic
+    this.calculateActiveDrones();
+    let resourceBuildings = [];
     const processedBuildings = new Set();
+
     for (const t of this.tiles) {
       if (!t.building || t.destroyed || processedBuildings.has(t.building)) continue;
       if (t.building.daysRemaining > 0) continue;
@@ -197,24 +202,61 @@ export default class GameScene extends Phaser.Scene {
       const status = b.status || 'active';
 
       if (status === 'active') {
-        if (b.key === 'tile_farm' && b.workers > 0) {
-          foodProduction += Math.floor(15 * E);
-        }
-        if (b.key === 'tile_o2' && b.workers > 0) {
-          o2Production += Math.floor(15 * E);
+        if (['tile_farm', 'tile_o2', 'tile_mine'].includes(b.key) && b.workers > 0) {
+          let childBonus = 0;
+          if (this.state.childLaborDaysRemaining > 0) childBonus = Math.floor(this.state.popChildren * 0.5);
+          resourceBuildings.push({tile: t, bld: b, childBonus});
         }
         if (b.key === 'atmo_synthesizer') {
           o2Production += Math.floor(50 * E);
         }
+        if (b.key === 'planetary_cracker') {
+          mineralsProduction += Math.floor(40 * E);
+        }
       }
-
       processedBuildings.add(t.building);
+    }
+
+    resourceBuildings.sort((a, b) => {
+      const priority = { tile_o2: 3, tile_farm: 2, tile_mine: 1 };
+      return (priority[b.bld.key] || 0) - (priority[a.bld.key] || 0);
+    });
+
+    const produceCount = Math.min(this.state.drones.active, resourceBuildings.length);
+    for(let i=0; i<produceCount; i++) {
+      const target = resourceBuildings[i];
+      if (target.bld.key === 'tile_farm') {
+        const baseProduction = Math.floor(15 * E);
+        const childBonus = target.childBonus ? Math.floor(target.childBonus * 7.5 * E) : 0;
+        foodProduction += baseProduction + childBonus;
+      }
+      if (target.bld.key === 'tile_o2') {
+        const baseProduction = Math.floor(15 * E);
+        const childBonus = target.childBonus ? Math.floor(target.childBonus * 7.5 * E) : 0;
+        o2Production += baseProduction + childBonus;
+      }
+      if (target.bld.key === 'tile_mine') {
+        const baseProduction = Math.floor(10 * E);
+        const childBonus = target.childBonus ? Math.floor(target.childBonus * 5 * E) : 0;
+        mineralsProduction += baseProduction + childBonus;
+      }
     }
 
     this.state.netIncome = {
       food: foodProduction - dailyConsumption,
-      o2: o2Production - dailyConsumption
+      o2: o2Production - dailyConsumption,
+      foodProduced: foodProduction,
+      o2Produced: o2Production,
+      mineralsProduced: mineralsProduction,
+      consumed: dailyConsumption
     };
+  }
+
+  getNetIncome() {
+    if (!this.state) return 0;
+    const T = Phaser.Math.Clamp(this.state.taxLevel, 0, 4);
+    const totalPop = getTotalPopulation(this.state);
+    return Math.floor(T * 2.5 * totalPop);
   }
 
   syncSentimentAliases() {
@@ -340,7 +382,8 @@ export default class GameScene extends Phaser.Scene {
       const freeEngineers = Math.max(0, this.state.popEngineers - this.state.dronesEngineersLocked);
 
       // Capacity check - cannot exceed max capacity
-      if (this.state.drones.owned + q > this.state.drones.capacity) {
+      const queuedDrones = (this.state.droneQueue || []).reduce((sum, item) => sum + (item.qty || 0), 0);
+      if (this.state.drones.owned + queuedDrones + q > this.state.drones.capacity) {
         this.events.emit('cosmic-event', `❌ Cannot produce ${q} drones: would exceed capacity of ${this.state.drones.capacity}.`);
         return;
       }
@@ -815,14 +858,36 @@ export default class GameScene extends Phaser.Scene {
       } else {
         const totalPop = this.state.popChildren + this.state.popWorkers + this.state.popEngineers;
         if (totalPop > 0) {
+          let deadType = null;
           if (this.state.popChildren > 0) {
             this.state.popChildren--;
+            deadType = 'child';
           } else if (this.state.popWorkers > 0) {
             this.state.popWorkers--;
+            deadType = 'worker';
           } else if (this.state.popEngineers > 0) {
             this.state.popEngineers--;
+            deadType = 'engineer';
           }
-          this.events.emit('cosmic-event', '💀 1 citizen has died from starvation.');
+          
+          if (deadType) {
+            const deadIndex = this.state.citizenRoster.findIndex(c => c.type === deadType);
+            if (deadIndex !== -1) {
+              this.state.citizenRoster.splice(deadIndex, 1);
+            }
+            if (deadType === 'worker' && this.state.popWorkers < this.state.workersLocked) {
+               this.state.workersLocked = Math.max(0, this.state.workersLocked - 1);
+            }
+            if (deadType === 'engineer') {
+               const lockedConstruction = this.state.constructionEngineersLocked || 0;
+               const lockedDrones = this.state.dronesEngineersLocked || 0;
+               if (this.state.popEngineers < lockedConstruction + lockedDrones) {
+                 if (lockedConstruction > 0) this.state.constructionEngineersLocked--;
+                 else if (lockedDrones > 0) this.state.dronesEngineersLocked--;
+               }
+            }
+            this.events.emit('cosmic-event', '💀 1 citizen has died from starvation.');
+          }
         }
         this.state.starvationGraceDays = 3;
       }
@@ -1310,8 +1375,17 @@ export default class GameScene extends Phaser.Scene {
       this.state.fear = 50;
       this.state.factionLoyalty = { rust: 0, order: 0, guild: 0 };
     }
+    
+    // Rebuild citizen roster based on preset
+    this.state.citizenRoster = [];
+    const hT = 7 + 7 * this.MAP_W;
+    for (let i = 0; i < this.state.popWorkers; i++) this.state.citizenRoster.push({ type: 'worker', isElite: true, homeTileIndex: hT });
+    for (let i = 0; i < this.state.popEngineers; i++) this.state.citizenRoster.push({ type: 'engineer', isElite: true, homeTileIndex: hT });
+    for (let i = 0; i < this.state.popChildren; i++) this.state.citizenRoster.push({ type: 'child', isElite: true, homeTileIndex: hT });
+    
     this.state.popCap = 20;
     this.syncSentimentAliases();
+    this.calculateNetIncome();
     this.scene.resume();
     this.events.emit('state-updated', this.state);
   }
