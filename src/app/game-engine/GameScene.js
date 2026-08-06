@@ -95,6 +95,7 @@ export default class GameScene extends Phaser.Scene {
     this.buildPreview = this.add.rectangle(0,0,this.TILE_SIZE,this.TILE_SIZE,0x00e5ff,0.4).setOrigin(0).setVisible(false);
 
     this.createBuildCostTooltip();
+    this.createMapTooltip();
 
     const cam = this.cameras.main;
     // Set strict bounds to the massive background so player cannot scroll into void
@@ -270,6 +271,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   setupInputs(cam) {
+    this.input.off('pointerdown');
+    this.input.off('pointerup');
+    this.input.off('pointermove');
+    this.input.off('wheel');
+
     this.input.on('pointerdown', (pointer) => {
       if(pointer.rightButtonDown() || pointer.middleButtonDown()) {
         this.isPanning = true; this.panStart = {x: pointer.x, y: pointer.y};
@@ -305,7 +311,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.isModalOpen) {
         this.buildPreview.setVisible(false);
         this.hideBuildCostTooltip();
-        this.events.emit('hide-map-tooltip');
+        this.hideMapTooltip();
         return;
       }
 
@@ -327,33 +333,36 @@ export default class GameScene extends Phaser.Scene {
         const tx = Math.floor(w.x / this.TILE_SIZE);
         const ty = Math.floor(w.y / this.TILE_SIZE);
         const tile = this.getTile(tx, ty);
-        if (tile && tile.building && tile.building.key === 'tile_dronehub' && tile.building.daysRemaining === 0) {
-          let qText = "Drone Hub Active";
-          if (this.state.droneQueue && this.state.droneQueue.length > 0) {
-            qText = "<strong>Production Queue:</strong><br>" + this.state.droneQueue.map(q => `⚙️ ${q.qty} drones in ${q.days} days`).join('<br>');
-          }
-          this.events.emit('show-map-tooltip', pointer.x, pointer.y, qText);
-        } else if (tile && tile.building && tile.building.daysRemaining === 0) {
+        
+        if (tile && tile.building && tile.building.daysRemaining === 0 && !tile.destroyed) {
           const b = tile.building;
           const status = b.status || 'active';
-          if (status !== 'active' && ['tile_farm', 'tile_o2', 'tile_mine', 'tile_uni', 'atmo_synthesizer', 'planetary_cracker', 'planet_stabilizer'].includes(b.key)) {
-            let tooltipText = '';
-            if (status === 'abandoned') {
-              tooltipText = `<strong style="color:#ff4444;">🔴 ABANDONED</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Starvation/No O2'}<br>Solution: Buy emergency supplies`;
-            } else if (status === 'strike') {
-              tooltipText = `<strong style="color:#ff4444;">✊ STRIKE</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Happiness < 30%'}<br>Solution: Lower Taxes or Propaganda`;
-            } else if (status === 'damaged') {
-              tooltipText = `<strong style="color:#888844;">☢️ DAMAGED</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Planet Health < 40%'}<br>Solution: Build Planet Stabilizer`;
+          const info = this.getBuildingTooltipInfo(b.key) || { title: b.key, desc: '' };
+          let extraHtml = '';
+          
+          if (b.key === 'tile_dronehub') {
+            let qText = "Drone Hub Active";
+            if (this.state.droneQueue && this.state.droneQueue.length > 0) {
+              qText = "<strong>Production Queue:</strong><br>" + this.state.droneQueue.map(q => `⚙️ ${q.qty} drones in ${q.days} days`).join('<br>');
             }
-            if (tooltipText) this.events.emit('show-map-tooltip', pointer.x, pointer.y, tooltipText);
-          } else if (b.forcedLabor && ['tile_farm', 'tile_o2', 'tile_mine', 'tile_uni', 'atmo_synthesizer', 'planetary_cracker', 'planet_stabilizer'].includes(b.key)) {
-            const tooltipText = `<strong style="color:#ffaa00;">⚠️ FORCED LABOR</strong><br>Production: Active<br>Cause: Low Happiness, but High Fear keeps them working<br>Risk: Efficiency reduced if Fear drops`;
-            this.events.emit('show-map-tooltip', pointer.x, pointer.y, tooltipText);
-          } else {
-            this.events.emit('hide-map-tooltip');
+            extraHtml += qText;
           }
+
+          if (status !== 'active' && ['tile_farm', 'tile_o2', 'tile_mine', 'tile_uni', 'atmo_synthesizer', 'planetary_cracker', 'planet_stabilizer'].includes(b.key)) {
+            if (status === 'abandoned') {
+              extraHtml += `<strong style="color:#ff4444;">🔴 ABANDONED</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Starvation/No O2'}<br>Solution: Buy emergency supplies`;
+            } else if (status === 'strike') {
+              extraHtml += `<strong style="color:#ff4444;">✊ STRIKE</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Happiness < 30%'}<br>Solution: Lower Taxes or Propaganda`;
+            } else if (status === 'damaged') {
+              extraHtml += `<strong style="color:#888844;">☢️ DAMAGED</strong><br>Production: 0<br>Cause: ${b.statusCause || 'Planet Health < 40%'}<br>Solution: Build Planet Stabilizer`;
+            }
+          } else if (b.forcedLabor && ['tile_farm', 'tile_o2', 'tile_mine', 'tile_uni', 'atmo_synthesizer', 'planetary_cracker', 'planet_stabilizer'].includes(b.key)) {
+            extraHtml += `<strong style="color:#ffaa00;">⚠️ FORCED LABOR</strong><br>Production: Active<br>Cause: Low Happiness, but High Fear keeps them working<br>Risk: Efficiency reduced if Fear drops`;
+          }
+
+          this.updateMapTooltip(pointer.x, pointer.y, info.title, info.desc, extraHtml);
         } else {
-          this.events.emit('hide-map-tooltip');
+          this.hideMapTooltip();
         }
         this.hideBuildCostTooltip();
       }
@@ -367,6 +376,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   setupEvents() {
+    this.events.off('enter-build-mode');
+    this.events.off('cancel-build-mode');
+    this.events.off('end-day');
+    this.events.off('action-decree');
+    this.events.off('open-drone-modal');
+    this.events.off('produce-drones');
+    this.events.off('open-education-modal');
+
     this.events.on('enter-build-mode', (key) => { this.buildMode = key; this.gridGraphics.setAlpha(1); });
     this.events.on('cancel-build-mode', () => {
       this.buildMode = null; this.gridGraphics.setAlpha(0);
@@ -379,7 +396,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('open-drone-modal', () => {
       const el = document.getElementById('drone-modal');
       if (el) el.classList.remove('hidden');
-      this.events.emit('hide-map-tooltip');
+      this.hideMapTooltip();
     });
 
     // Start producing drones (payload: qty)
@@ -624,6 +641,53 @@ export default class GameScene extends Phaser.Scene {
   hideBuildCostTooltip() {
     if (!this.buildCostTooltipEl) return;
     this.buildCostTooltipEl.classList.add('hidden');
+  }
+
+  createMapTooltip() {
+    const host = document.getElementById('ui-layer') || document.body;
+    this.mapTooltipEl = document.createElement('div');
+    this.mapTooltipEl.className = 'ui-map-tooltip hidden';
+    host.appendChild(this.mapTooltipEl);
+  }
+
+  getBuildingTooltipInfo(key) {
+    const dict = {
+      tile_palace: { title: "Palace", desc: "Central Command. Generates basic authority." },
+      tile_farm: { title: "Farm", desc: "Hydroponic Farm. Produces Food (+15/day). Requires 2 Workers." },
+      tile_o2: { title: "O2 Generator", desc: "Life Support. Produces Oxygen (+15/day). Requires 2 Workers." },
+      tile_mine: { title: "Mine", desc: "Excavation Site. Produces Minerals (+10/day). Requires 3 Workers." },
+      tile_housing: { title: "Housing Block", desc: "Living Quarters. Increases population capacity by +10." },
+      tile_dronehub: { title: "Drone Hub", desc: "Logistics Center. Increases maximum drone capacity by +5." },
+      tile_school: { title: "School", desc: "Education Center. Trains children into Workers (5 slots)." },
+      tile_uni: { title: "Academy", desc: "Royal Academy. Trains Workers into Engineers (5 slots) and generates Knowledge." },
+      planet_stabilizer: { title: "Planet Stabilizer", desc: "Core Restoration. Heals Planet Health (+5/day)." },
+      atmo_synthesizer: { title: "Atmo-Synthesizer", desc: "Massive Life Support. Produces immense Oxygen (+50/day)." },
+      planetary_cracker: { title: "Planetary Cracker", desc: "Deep Core Mining. Massive Mineral yield (+40/day) but damages Planet Health." },
+      ark_ship: { title: "Royal Ark", desc: "Escape Vessel. The final hope for your people." }
+    };
+    return dict[key];
+  }
+
+  updateMapTooltip(screenX, screenY, title, desc, extraHtml = '') {
+    if (!this.mapTooltipEl) return;
+    
+    let html = `<strong class="title">${title}</strong>`;
+    if (desc) {
+      html += `<div style="margin-top: 4px;">${desc}</div>`;
+    }
+    if (extraHtml) {
+      html += `<div style="margin-top: 8px; border-top: 1px solid #374151; padding-top: 6px;">${extraHtml}</div>`;
+    }
+    
+    this.mapTooltipEl.innerHTML = html;
+    this.mapTooltipEl.style.left = `${screenX + 14}px`;
+    this.mapTooltipEl.style.top = `${screenY + 14}px`;
+    this.mapTooltipEl.classList.remove('hidden');
+  }
+
+  hideMapTooltip() {
+    if (!this.mapTooltipEl) return;
+    this.mapTooltipEl.classList.add('hidden');
   }
 
   executeDecree(type) {
@@ -1541,5 +1605,102 @@ export default class GameScene extends Phaser.Scene {
 
     const flavorArray = responses[faction] || ["Trade complete."];
     return flavorArray[Math.floor(Math.random() * flavorArray.length)];
+  }
+
+  saveGame() {
+    const slot = localStorage.getItem('current_save_slot') || 'save_slot_1';
+    
+    const serializedTiles = this.tiles.map(t => {
+      let bldData = null;
+      if (t.building) {
+        bldData = {
+          key: t.building.key,
+          daysRemaining: t.building.daysRemaining,
+          totalDays: t.building.totalDays,
+          status: t.building.status,
+          statusCause: t.building.statusCause,
+          forcedLabor: t.building.forcedLabor,
+          workers: t.building.workers,
+          lockedWorkers: t.building.lockedWorkers,
+          lockedEngineers: t.building.lockedEngineers
+        };
+      }
+      return { x: t.x, y: t.y, building: bldData, destroyed: t.destroyed };
+    });
+
+    localStorage.setItem(slot, JSON.stringify({ state: this.state, tiles: serializedTiles }));
+  }
+
+  loadGame(slot) {
+    const dataStr = localStorage.getItem(slot);
+    if (!dataStr) return;
+
+    try {
+      const saveData = JSON.parse(dataStr);
+      this.state = saveData.state;
+      
+      const destroyedSprites = new Set();
+      for (const t of this.tiles) {
+        if (t.building && t.building.sprite && !destroyedSprites.has(t.building.sprite)) {
+          t.building.sprite.destroy();
+          destroyedSprites.add(t.building.sprite);
+          t.building.sprite = null;
+        }
+      }
+
+      this.tiles = saveData.tiles.map(tData => ({
+        x: tData.x, y: tData.y, sprite: null, building: null, destroyed: tData.destroyed
+      }));
+
+      const processedTiles = new Set();
+      for (let i = 0; i < saveData.tiles.length; i++) {
+        const tData = saveData.tiles[i];
+        if (tData.building && !processedTiles.has(i)) {
+          const config = this.getBuildConfig(tData.building.key) || { size: 1 };
+          const is2x2 = config.size === 2;
+          const tx = tData.x;
+          const ty = tData.y;
+          
+          let sprX = tx * this.TILE_SIZE + (is2x2 ? this.TILE_SIZE : this.TILE_SIZE / 2);
+          let sprY = ty * this.TILE_SIZE + (is2x2 ? this.TILE_SIZE : this.TILE_SIZE / 2);
+
+          const spr = this.add.image(sprX, sprY, tData.building.key).setDisplaySize(this.TILE_SIZE*(is2x2?2:1), this.TILE_SIZE*(is2x2?2:1));
+          spr.originalScaleX = spr.scaleX;
+          spr.originalScaleY = spr.scaleY;
+
+          if (tData.building.daysRemaining > 0) { spr.setTint(0x4466aa); spr.setAlpha(0.6); }
+          if (tData.destroyed) { spr.setTint(0xff0000); }
+
+          const bld = {
+            key: tData.building.key, daysRemaining: tData.building.daysRemaining,
+            totalDays: tData.building.totalDays || 3, workers: tData.building.workers || 0,
+            lockedWorkers: tData.building.lockedWorkers || 0, lockedEngineers: tData.building.lockedEngineers || 0,
+            status: tData.building.status, statusCause: tData.building.statusCause,
+            forcedLabor: tData.building.forcedLabor, sprite: spr
+          };
+
+          if (bld.daysRemaining === 0) this.bindBuildingInteractions(spr, bld);
+
+          if (is2x2) {
+            for(let oy=0;oy<2;oy++) for(let ox=0;ox<2;ox++) {
+              const idx = (tx+ox) + (ty+oy)*this.MAP_W;
+              this.tiles[idx].building = bld;
+              processedTiles.add(idx);
+            }
+          } else {
+            this.tiles[i].building = bld;
+            processedTiles.add(i);
+          }
+        }
+      }
+
+      this.events.emit('state-updated', this.state);
+      if (this.scene.isPaused()) this.scene.resume();
+      this.events.emit('toast-event', { msg: 'Game Loaded Successfully', type: 'system' });
+      
+    } catch (e) {
+      console.error(e);
+      this.events.emit('toast-event', { msg: 'Failed to load save data', type: 'error' });
+    }
   }
 }

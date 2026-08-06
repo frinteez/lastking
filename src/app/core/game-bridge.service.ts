@@ -108,6 +108,19 @@ export class GameBridgeService {
     }
   }
 
+  public saveGame() {
+    if (this.phaserScene && this.phaserScene.saveGame) {
+      this.phaserScene.saveGame();
+      this.handleToast('Game Saved Successfully', 'system');
+    }
+  }
+
+  public loadGame(slot: string) {
+    if (this.phaserScene && this.phaserScene.loadGame) {
+      this.phaserScene.loadGame(slot);
+    }
+  }
+
   public enqueueEducation(type: string, qty: number): number {
     if (this.phaserScene && this.phaserScene.enqueueEducation) {
       return this.phaserScene.enqueueEducation(type, qty);
