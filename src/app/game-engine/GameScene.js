@@ -23,8 +23,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image('bg_planet', '/assets/bg_planet.png');
-    this.load.image('bg_space_nebula', '/assets/bg_space_nebula.jpg');
+    this.load.image('asteroid_ground', '/assets/asteroid_ground.jpg');
     this.load.image('tile_palace', '/assets/tile_palace.png');
     this.load.image('tile_farm', '/assets/tile_farm.png');
     this.load.image('tile_o2', '/assets/tile_o2.png');
@@ -64,25 +63,8 @@ export default class GameScene extends Phaser.Scene {
     const mapW = this.MAP_W * this.TILE_SIZE;
     const mapH = this.MAP_H * this.TILE_SIZE;
 
-    // Create massive cosmic nebula background
-    this.bgNebula = this.add.image(mapW / 2, mapH / 2, 'bg_space_nebula').setOrigin(0.5).setScale(4.0).setDepth(-2);
-    
-    // Aliveness breathing tween for the background nebula
-    this.tweens.add({
-      targets: this.bgNebula,
-      scaleX: 4.2,
-      scaleY: 4.2,
-      alpha: 0.8,
-      duration: 8000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    // The actual map surface (planet), centered and STABLE - no rotation
-    this.bgPlanet = this.add.image(mapW / 2, mapH / 2, 'bg_planet').setOrigin(0.5).setDisplaySize(mapW, mapH).setDepth(-1);
-
-
+    // Create massive tiled asteroid ground that covers the entire playable and non-playable area
+    this.bgGround = this.add.tileSprite(mapW / 2, mapH / 2, 8192, 8192, 'asteroid_ground').setDepth(-2);
     this.tiles = Array(this.MAP_W * this.MAP_H).fill(null).map((_, i) => ({
       x: i % this.MAP_W, y: Math.floor(i / this.MAP_W), sprite: null, building: null, destroyed: false
     }));
@@ -1276,12 +1258,12 @@ export default class GameScene extends Phaser.Scene {
     this.state.planet = Phaser.Math.Clamp(this.state.planet, 0, 100);
 
     // Planet desaturation at low health
-    if (this.bgPlanet && this.state.planet < 50) {
-      const grayAmount = (50 - this.state.planet) / 50;
-      const tintValue = 255 - Math.floor(grayAmount * 80);
-      this.bgPlanet.setTint(Phaser.Display.Color.GetColor(tintValue, tintValue, tintValue));
-    } else if (this.bgPlanet) {
-      this.bgPlanet.clearTint();
+    if (this.bgGround && this.state.planet < 50) {
+      const severity = 50 - this.state.planet; 
+      const tintValue = 255 - (severity * 3); 
+      this.bgGround.setTint(Phaser.Display.Color.GetColor(tintValue, tintValue, tintValue));
+    } else if (this.bgGround) {
+      this.bgGround.clearTint();
     }
 
     if (requiredSlots > this.state.drones.active) {
