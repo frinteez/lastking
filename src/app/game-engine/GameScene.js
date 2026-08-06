@@ -380,9 +380,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.off('cancel-build-mode');
     this.events.off('end-day');
     this.events.off('action-decree');
-    this.events.off('open-drone-modal');
     this.events.off('produce-drones');
-    this.events.off('open-education-modal');
 
     this.events.on('enter-build-mode', (key) => { this.buildMode = key; this.gridGraphics.setAlpha(1); });
     this.events.on('cancel-build-mode', () => {
@@ -392,12 +390,6 @@ export default class GameScene extends Phaser.Scene {
     });
     this.events.on('end-day', () => this.nextDay());
     this.events.on('action-decree', (type) => this.executeDecree(type));
-    // Open Drone Modal (UI) when requested
-    this.events.on('open-drone-modal', () => {
-      const el = document.getElementById('drone-modal');
-      if (el) el.classList.remove('hidden');
-      this.hideMapTooltip();
-    });
 
     // Start producing drones (payload: qty)
     this.events.on('produce-drones', (qty) => {
@@ -1485,15 +1477,24 @@ export default class GameScene extends Phaser.Scene {
       minerals: { basePrice: 200, yield: 1000, grant: (q) => { this.state.minerals += q * 1000; } },
       technology: { basePrice: 1500, yield: 1, grant: (q) => {
         const allTechIds = ['hydroponics', 'advO2', 'deepExcavation', 'droneRouting', 'atmoSynthesizer', 'planetaryCracker', 'basicSchooling', 'tradeSkills', 'massMedia', 'surveillance', 'planetStabilizer', 'arkBlueprint', 'royalGenome'];
-        const locked = allTechIds.filter(id => !this.state.techs[id]);
-        if (locked.length > 0) {
-          // Shuffle and pick
-          const randTech = locked[Math.floor(Math.random() * locked.length)];
-          this.state.techs[randTech] = true;
-          this.events.emit('cosmic-event', `Unlocked Technology: ${randTech.toUpperCase()}!`);
-        } else {
-          this.state.wissen += 500;
-          this.events.emit('cosmic-event', `No new tech available. Granted 500 Knowledge.`);
+        let unlockedStr = [];
+        let knowledgeGained = 0;
+        for (let i = 0; i < q; i++) {
+          const locked = allTechIds.filter(id => !this.state.techs[id]);
+          if (locked.length > 0) {
+            const randTech = locked[Math.floor(Math.random() * locked.length)];
+            this.state.techs[randTech] = true;
+            unlockedStr.push(randTech.toUpperCase());
+          } else {
+            this.state.wissen += 500;
+            knowledgeGained += 500;
+          }
+        }
+        if (unlockedStr.length > 0) {
+          this.events.emit('cosmic-event', `Unlocked Technology: ${unlockedStr.join(', ')}!`);
+        }
+        if (knowledgeGained > 0) {
+          this.events.emit('cosmic-event', `No new tech available. Granted ${knowledgeGained} Knowledge.`);
         }
       }},
       sauerstoff: { basePrice: 150, yield: 1000, grant: (q) => { this.state.sauerstoff += q * 1000; } },
