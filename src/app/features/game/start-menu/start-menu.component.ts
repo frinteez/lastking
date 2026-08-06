@@ -12,7 +12,42 @@ import { GameBridgeService } from '../../../core/game-bridge.service';
         <h1 class="text-3xl font-bold text-center text-sci-cyan mb-6 tracking-widest font-mono border-b border-sci-cyan pb-4">
           DER LETZTE KÖNIG
         </h1>
-        
+
+        <div *ngIf="view === 'slots'" class="font-mono h-auto min-h-[28rem] flex flex-col items-center">
+          <h2 class="text-xl mb-6 text-sci-violet">SELECT SAVE SLOT</h2>
+          <div class="flex flex-col gap-4 w-full max-w-md">
+            <div *ngFor="let slot of [1, 2, 3]" class="bg-sci-navy border border-sci-cyan p-4 transition-colors">
+              <div class="font-bold text-lg mb-2 text-sci-cyan">SLOT {{ slot }}</div>
+              
+              <div *ngIf="!saveSlots[slot - 1]">
+                <p class="text-gray-400 text-sm mb-4">Empty Slot</p>
+                <button class="bg-sci-cyan text-sci-dark px-4 py-2 font-bold w-full hover:bg-white transition-colors"
+                        (click)="newGame(slot)">
+                  NEW GAME
+                </button>
+              </div>
+
+              <div *ngIf="saveSlots[slot - 1]">
+                <div class="flex justify-between text-sm mb-4">
+                  <span>Day: <span class="text-green-400">{{ saveSlots[slot - 1].day }}</span></span>
+                  <span>Pop: <span class="text-blue-400">{{ saveSlots[slot - 1].pop }}</span></span>
+                </div>
+                <div class="flex gap-2">
+                  <button class="bg-sci-cyan text-sci-dark px-4 py-2 font-bold flex-1 hover:bg-white transition-colors"
+                          (click)="loadGame(slot)">
+                    LOAD GAME
+                  </button>
+                  <button class="border border-red-500 text-red-500 px-4 py-2 font-bold flex-1 hover:bg-red-500 hover:text-white transition-colors"
+                          (click)="newGame(slot)">
+                    OVERWRITE
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="view === 'main'">
         <div class="flex gap-4 mb-6 font-mono text-sm border-b border-gray-700 pb-2">
           <button (click)="activeTab = 'presets'" [ngClass]="{'text-sci-cyan border-b border-sci-cyan': activeTab === 'presets', 'text-gray-500': activeTab !== 'presets'}">PRESETS</button>
           <button (click)="activeTab = 'howtoplay'" [ngClass]="{'text-sci-cyan border-b border-sci-cyan': activeTab === 'howtoplay', 'text-gray-500': activeTab !== 'howtoplay'}">HOW TO PLAY</button>
@@ -132,8 +167,8 @@ import { GameBridgeService } from '../../../core/game-bridge.service';
           <!-- WHO ARE YOU -->
           <div class="mb-5 border-l-2 border-sci-cyan pl-4">
             <h3 class="text-sci-cyan font-bold mb-2 text-base">👑 Who Are You?</h3>
-            <p class="leading-relaxed mb-2">You are <strong class="text-white">the last king</strong> of a civilization clinging to survival on a crumbling world. Your planet is dying — its atmosphere thinning, its ground cracking, its people desperate and afraid.</p>
-            <p class="leading-relaxed">Generations of exploitation have poisoned the soil and broken the sky. The old empire has collapsed. You alone remain with the authority, the resources, and the burden to lead what is left of your people. Every decision you make will shape their fate — and yours.</p>
+            <p class="leading-relaxed mb-2">You are <strong class="text-white">the heir to a broken crown</strong>. When your original homeworld began to collapse, your father—the former ruler—made a ruthless choice. He abandoned the doomed civilization, gathered a chosen crew, and fled across the stars to establish a new colony.</p>
+            <p class="leading-relaxed">But he did not survive the unforgiving journey. Now, you have made landfall on this harsh, alien rock. You alone inherit his title, his surviving people, and the immense burden of keeping them alive. The atmosphere is thin, the ground is barren, and the colonists look to you for salvation. Every decision you make will determine if this new home becomes a sanctuary, or just another graveyard.</p>
           </div>
 
           <!-- YOUR MISSION -->
@@ -156,7 +191,7 @@ import { GameBridgeService } from '../../../core/game-bridge.service';
 
               <div class="bg-blue-900/30 border border-blue-500 p-3">
                 <div class="text-blue-400 font-bold mb-1">🚀 Royal Ark <span class="text-xs text-blue-600 font-normal">(Escape Victory)</span></div>
-                <p class="text-xs leading-relaxed">Build the <strong>Royal Ark</strong> and accumulate <strong>30,000 Geld</strong>. Abandon the dying planet and flee to the stars. You save yourself and your elite — but leave the rest behind. A selfish victory, but a victory nonetheless.</p>
+                <p class="text-xs leading-relaxed">Build the <strong>Royal Ark</strong> and accumulate <strong>30,000 Credits</strong>. Abandon the dying planet and flee to the stars. You save yourself and your elite — but leave the rest behind. A selfish victory, but a victory nonetheless.</p>
               </div>
 
               <div class="bg-red-900/30 border border-red-700 p-3">
@@ -178,6 +213,11 @@ import { GameBridgeService } from '../../../core/game-bridge.service';
             <p class="leading-relaxed text-gray-400">The question is not <em>what is the best choice</em>. The question is <em>what kind of king do you want to be?</em> A savior, a tyrant, a refugee, or a ghost?</p>
           </div>
         </div>
+        
+        <div class="mt-4 text-right">
+          <button class="text-gray-400 hover:text-white text-xs underline" (click)="view = 'slots'">Back to Slots</button>
+        </div>
+        </div>
       </div>
     </div>
   `,
@@ -189,11 +229,44 @@ import { GameBridgeService } from '../../../core/game-bridge.service';
 })
 export class StartMenuComponent implements OnInit {
   visible = true;
+  view = 'slots';
   activeTab = 'presets';
+  saveSlots: any[] = [null, null, null];
 
   constructor(private bridge: GameBridgeService) {}
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.loadSaveData();
+  }
+
+  loadSaveData() {
+    for (let i = 1; i <= 3; i++) {
+      const data = localStorage.getItem('save_slot_' + i);
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          const state = parsed.state;
+          const pop = (state.popChildren || 0) + (state.popWorkers || 0) + (state.popEngineers || 0);
+          this.saveSlots[i - 1] = { day: state.day, pop: pop };
+        } catch (e) {
+          this.saveSlots[i - 1] = null;
+        }
+      } else {
+        this.saveSlots[i - 1] = null;
+      }
+    }
+  }
+
+  newGame(slot: number) {
+    localStorage.setItem('current_save_slot', 'save_slot_' + slot);
+    this.view = 'main';
+  }
+
+  loadGame(slot: number) {
+    localStorage.setItem('current_save_slot', 'save_slot_' + slot);
+    this.bridge.loadGame('save_slot_' + slot);
+    this.visible = false;
+  }
 
   startGame(preset: string) {
     this.bridge.startWithPreset(preset);

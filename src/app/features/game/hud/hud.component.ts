@@ -162,8 +162,14 @@ export interface FloatingText {
               </div>
             </div>
           </div>
-          <div class="font-bold text-sci-cyan text-sm drop-shadow-[0_0_5px_#22d3ee]">
-            DAY {{ state.tag }}
+          <div class="flex items-center gap-4">
+            <button class="bg-sci-navy hover:bg-sci-cyan hover:text-sci-dark text-sci-cyan border border-sci-cyan px-2 py-1 text-xs transition-colors"
+                    (click)="saveGame()">
+              SAVE GAME
+            </button>
+            <div class="font-bold text-sci-cyan text-sm drop-shadow-[0_0_5px_#22d3ee]">
+              DAY {{ state.tag }}
+            </div>
           </div>
         </div>
       </div>
@@ -241,5 +247,9 @@ export class HudComponent implements OnInit {
     if (!this.state) return 0;
     const locked = (this.state.constructionEngineersLocked || 0) + (this.state.dronesEngineersLocked || 0);
     return Math.max(0, (this.state.popEngineers || 0) - locked);
+  }
+
+  saveGame() {
+    this.bridge.saveGame();
   }
 }

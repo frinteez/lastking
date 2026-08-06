@@ -88,7 +88,7 @@ export class ModalsContainerComponent implements OnInit {
         { id: 'technology', name: 'Random Tech', icon: '/assets/icon_tech.png', basePrice: 1500, yield: 1, tooltip: 'Instantly unlocks a random unresearched technology.' }
       ],
       accepts: [
-        { id: 'geld', name: 'Geld' },
+        { id: 'geld', name: 'Credits' },
         { id: 'nahrung', name: 'Food' }
       ]
     },
@@ -100,7 +100,7 @@ export class ModalsContainerComponent implements OnInit {
         { id: 'medicine', name: 'Medicine', icon: '/assets/icon_medicine.png', basePrice: 400, yield: 1, tooltip: 'Instantly heals the colony by +20 Health.' }
       ],
       accepts: [
-        { id: 'geld', name: 'Geld' },
+        { id: 'geld', name: 'Credits' },
         { id: 'mineralien', name: 'Minerals' }
       ]
     },

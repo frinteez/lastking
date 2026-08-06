@@ -324,6 +324,7 @@
             <div>
               <div class="text-xs text-gray-400">Discount: <span class="text-green-400">{{ getTradeDiscount() }}%</span></div>
               <div class="text-sm">Price per unit: <span class="text-green-400">{{ getTradePrice() }}</span></div>
+              <div class="text-sm mt-1">Total Yield: <span class="text-sci-cyan">{{ tradeQty * getSelectedProductData().yield }} {{ getSelectedProductData().name }}</span></div>
               <div class="text-lg font-bold mt-1">Total Cost: <span class="text-green-400">{{ getTradeTotalCostInCurrency() }} {{ getSelectedPaymentName() }}</span></div>
             </div>
             <button class="bg-sci-cyan text-sci-dark hover:bg-white px-6 py-2 font-bold transition-colors shadow-neon-cyan" (click)="submitTrade()">
