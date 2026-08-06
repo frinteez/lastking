@@ -121,18 +121,15 @@ export class GameBridgeService {
     }
   }
 
-  public enqueueEducation(type: string, qty: number): number {
+  public enqueueEducation(type: 'school' | 'academy', qty: number) {
     if (this.phaserScene && this.phaserScene.enqueueEducation) {
-      return this.phaserScene.enqueueEducation(type, qty);
+      this.phaserScene.enqueueEducation(type, qty);
     }
-    return 0;
   }
 
-  public enqueueDroneProduction(qty: number): number {
+  public enqueueDroneProduction(qty: number) {
     if (this.phaserScene) {
       this.phaserScene.events.emit('produce-drones', qty);
-      return 1;
     }
-    return 0;
   }
 }
