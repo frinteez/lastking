@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GameBridgeService } from '../../../core/game-bridge.service';
 import { ModalService } from '../../../core/modal.service';
@@ -47,7 +47,7 @@ export class GameCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private modalSub: any;
 
-  constructor(private bridge: GameBridgeService, private modalService: ModalService, private cdr: ChangeDetectorRef) {}
+  constructor(private bridge: GameBridgeService, private modalService: ModalService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {}
 
   trackById(index: number, item: ConstructionSite) {
     return item.id;
@@ -150,23 +150,33 @@ export class GameCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Bind Modals to Phaser Events
     scene.events.on('open-education-modal', (type: string) => {
-      this.modalService.open(type === 'academy' ? 'uni' : 'school');
+      this.ngZone.run(() => {
+        this.modalService.open(type === 'academy' ? 'uni' : 'school');
+      });
     });
 
     scene.events.on('open-drone-modal', () => {
-      this.modalService.open('drone');
+      this.ngZone.run(() => {
+        this.modalService.open('drone');
+      });
     });
 
     scene.events.on('trigger-ending', (type: string) => {
-      this.modalService.open('endgame', type);
+      this.ngZone.run(() => {
+        this.modalService.open('endgame', type);
+      });
     });
 
     scene.events.on('cosmic-event', (msg: string) => {
-      this.bridge.handleCosmicEvent(msg);
+      this.ngZone.run(() => {
+        this.bridge.handleCosmicEvent(msg);
+      });
     });
 
     scene.events.on('toast-event', (data: {msg: string, type: 'error'|'system'}) => {
-      this.bridge.handleToast(data.msg, data.type);
+      this.ngZone.run(() => {
+        this.bridge.handleToast(data.msg, data.type);
+      });
     });
   }
 

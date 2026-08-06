@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { GameBridgeService } from '../../../core/game-bridge.service';
 import { GameState } from '../../../core/game-state.model';
 import { ModalService, ModalType } from '../../../core/modal.service';
+import { ChangeDetectorRef } from '@angular/core';
 
 @Component({
   selector: 'app-modals-container',
@@ -119,12 +120,13 @@ export class ModalsContainerComponent implements OnInit {
     }
   };
 
-  constructor(private modalService: ModalService, private bridge: GameBridgeService) {}
+  constructor(private bridge: GameBridgeService, private modalService: ModalService, private cd: ChangeDetectorRef) {}
 
   ngOnInit() {
     this.modalService.activeModal$.subscribe(m => {
       this.activeModal = m.type;
       this.modalData = m.data;
+      this.cd.detectChanges();
       if (m.type === 'school') this.schoolQty = 0;
       if (m.type === 'uni') this.academyQty = 0;
       if (m.type === 'drone') this.droneQty = 0;
@@ -132,6 +134,11 @@ export class ModalsContainerComponent implements OnInit {
         this.endingText = this.getEndgameDesc();
         this.typewriterText = '';
         this.startTypewriter();
+      }
+      if (m.type === 'geopolitics') {
+        this.tradeResponse = '';
+        this.typedTradeResponse = '';
+        if (this.tradeTypingInterval) clearInterval(this.tradeTypingInterval);
       }
     });
     this.bridge.gameState$.subscribe(s => {
@@ -142,6 +149,11 @@ export class ModalsContainerComponent implements OnInit {
 
   close() {
     this.modalService.close();
+    this.endingText = '';
+    this.typewriterText = '';
+    this.tradeResponse = '';
+    this.typedTradeResponse = '';
+    if (this.tradeTypingInterval) clearInterval(this.tradeTypingInterval);
   }
 
   // --- Education ---
