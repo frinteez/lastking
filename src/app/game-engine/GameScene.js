@@ -1412,7 +1412,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   triggerEnding(type) {
-    const normalizedType = String(type).toLowerCase() === 'uprising' ? 'Uprising' : type;
+    let normalizedType = String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
+    const validEndings = ['Uprising', 'Collapse', 'Ascension', 'Escape'];
+    if (!validEndings.includes(normalizedType)) {
+      normalizedType = 'Collapse'; // fallback
+    }
     this.state.gameEnded = true;
     this.cameras.main.fade(3000, 0, 0, 0);
     this.time.delayedCall(3000, () => {
